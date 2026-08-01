@@ -5,8 +5,8 @@
 //+------------------------------------------------------------------+
 #property copyright "Catatan Harian Trader"
 #property link      "https://your-domain.vercel.app"
-#property version   "2.00"
-#property description "EA Connector: Sinkronisasi otomatis trade MT5 ke aplikasi Catatan Harian Trader."
+#property version   "2.10"
+#property description "EA Connector v2.1: Auto Sync MT5 + MFE (Maximum Favorable Excursion) Exit Efficiency Calculation."
 
 //--- Inputs
 input string   InpApiToken        = "";               // API Token Unik (Salin dari Web Dashboard)
@@ -24,7 +24,7 @@ string   g_serverUrl    = "";
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("[CatatanHarianTrader] v2.0 Memulai EA Connector...");
+   Print("[CatatanHarianTrader] v2.1 Memulai EA Connector + MFE...");
 
    // Clean trailing slash from URL
    g_serverUrl = InpServerUrl;
@@ -108,11 +108,38 @@ bool PerformHandshake()
 }
 
 //+------------------------------------------------------------------+
+//| Calculate MFE Peak Price from M1 Candles                         |
+//+------------------------------------------------------------------+
+double CalculateMFEPeak(string symbol, string direction, datetime openTime, datetime closeTime)
+{
+   MqlRates rates[];
+   ArraySetAsSeries(rates, false);
+   int copied = CopyRates(symbol, PERIOD_M1, openTime, closeTime, rates);
+
+   if(copied <= 0) return 0;
+
+   double peak = rates[0].high;
+   if(direction == "buy")
+   {
+      for(int i = 1; i < copied; i++)
+         if(rates[i].high > peak) peak = rates[i].high;
+   }
+   else
+   {
+      peak = rates[0].low;
+      for(int i = 1; i < copied; i++)
+         if(rates[i].low < peak) peak = rates[i].low;
+   }
+
+   return peak;
+}
+
+//+------------------------------------------------------------------+
 //| Sync closed history + open positions ke server                   |
 //+------------------------------------------------------------------+
 void SyncTradeHistory()
 {
-   Print("[CatatanHarianTrader] Mulai sync trade history...");
+   Print("[CatatanHarianTrader] Mulai sync trade history + MFE...");
 
    string tradesJson = "";
    int    tradeCount = 0;
@@ -131,7 +158,6 @@ void SyncTradeHistory()
       ulong ticket = HistoryDealGetTicket(i);
       if(ticket == 0) continue;
 
-      // Only OUT deals represent trade closes
       ENUM_DEAL_ENTRY entryType = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket, DEAL_ENTRY);
       if(entryType != DEAL_ENTRY_OUT) continue;
 
@@ -145,11 +171,8 @@ void SyncTradeHistory()
       datetime closeTime  = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
       long   posId        = HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
 
-      // Find entry (IN) deal for this position
       double  openPrice   = 0;
       datetime openTime   = 0;
-      double  slVal       = 0;
-      double  tpVal       = 0;
 
       for(int j = 0; j < dealsTotal; j++)
       {
@@ -163,8 +186,8 @@ void SyncTradeHistory()
          break;
       }
 
-      // Determine direction: DEAL_TYPE_BUY = buy, DEAL_TYPE_SELL = sell
-      string direction = (dealType == DEAL_TYPE_BUY) ? "sell" : "buy"; // OUT deal is opposite of entry
+      string direction = (dealType == DEAL_TYPE_BUY) ? "sell" : "buy";
+      double mfePeak = CalculateMFEPeak(symbol, direction, openTime, closeTime);
 
       string tradeItem = StringFormat(
          "{\"mt5_ticket_id\":%d,"
@@ -175,11 +198,12 @@ void SyncTradeHistory()
          "\"close_price\":%.5f,"
          "\"open_time\":\"%s\","
          "\"close_time\":\"%s\","
-         "\"sl\":%.5f,"
-         "\"tp\":%.5f,"
+         "\"sl\":0,"
+         "\"tp\":0,"
          "\"pnl\":%.2f,"
          "\"commission\":%.2f,"
          "\"swap\":%.2f,"
+         "\"mfe_value\":%.5f,"
          "\"status\":\"closed\"}",
          (int)posId,
          symbol,
@@ -189,11 +213,10 @@ void SyncTradeHistory()
          price,
          TimeToString(openTime, TIME_DATE | TIME_MINUTES | TIME_SECONDS),
          TimeToString(closeTime, TIME_DATE | TIME_MINUTES | TIME_SECONDS),
-         slVal,
-         tpVal,
          pnl,
          commission,
-         swap
+         swap,
+         mfePeak
       );
 
       if(tradeCount > 0) tradesJson += ",";
@@ -235,6 +258,7 @@ void SyncTradeHistory()
          "\"pnl\":%.2f,"
          "\"commission\":0,"
          "\"swap\":%.2f,"
+         "\"mfe_value\":null,"
          "\"status\":\"open\"}",
          (int)posId,
          symbol,
@@ -277,7 +301,7 @@ void SyncTradeHistory()
    else
    {
       Print("[CatatanHarianTrader] Sync GAGAL (HTTP ", resCode, "): ", response);
-      if(resCode == 401) g_isConnected = false; // Token revoked
+      if(resCode == 401) g_isConnected = false;
    }
 }
 

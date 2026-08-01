@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Server, AlertCircle, RefreshCw } from 'lucide-react'
+import { Plus, Server, AlertCircle, RefreshCw, FileSpreadsheet } from 'lucide-react'
 import { MT5Connection } from '@/types/mt5'
 import { MAX_MT5_CONNECTIONS_PER_USER } from '@/constants/mt5'
 import { ConnectionCard } from '@/components/shared/connection-card'
@@ -92,7 +92,15 @@ export default function MT5Page() {
             <RefreshCw className="h-4 w-4" />
           </Button>
           <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => window.location.href = '/mt5/import'}
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Import CSV
+          </Button>
+          <Button
             variant="primary"
+            size="sm"
             onClick={() => setIsModalOpen(true)}
             disabled={isLimitReached}
           >

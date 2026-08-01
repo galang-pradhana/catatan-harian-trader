@@ -17,7 +17,8 @@ const TradePayloadSchema = z.object({
   pnl:            z.number().nullable().optional(),
   commission:     z.number().default(0),
   swap:           z.number().default(0),
-  status:         z.enum(['open', 'closed']),
+  mfe_value:       z.number().nullable().optional(),
+  status:          z.enum(['open', 'closed']),
 })
 
 const SyncPayloadSchema = z.object({
@@ -113,6 +114,8 @@ export async function POST(request: NextRequest) {
       commission:        t.commission,
       swap:              t.swap,
       status:            t.status,
+      source:            'mt5_sync',
+      mfe_value:         t.mfe_value ?? null,
       session:           detectSession(t.open_time),
       // journal_status defaults to 'incomplete' — do NOT overwrite if already 'complete'
     }))

@@ -17,6 +17,8 @@ import { PnLCalendar } from '@/components/shared/pnl-calendar'
 import { WeeklyChart } from '@/components/shared/weekly-chart'
 import { SymbolPerformanceTable } from '@/components/shared/symbol-performance-table'
 import { PerformanceHighlights } from '@/components/shared/performance-highlights'
+import { MfeCard } from '@/components/shared/mfe-card'
+import { SqnCard } from '@/components/shared/sqn-card'
 
 // ── Month helper ─────────────────────────────────────────────
 function getCurrentMonth(): string {
@@ -67,6 +69,12 @@ async function fetchHighlights(month: string) {
   return res.json()
 }
 
+async function fetchAdvancedMetrics(month: string) {
+  const res = await fetch(`/api/dashboard/advanced-metrics?month=${month}`)
+  if (!res.ok) return null
+  return res.json()
+}
+
 // ── Loading Skeleton ──────────────────────────────────────────
 function SkeletonCard({ className = '' }: { className?: string }) {
   return <div className={`bg-card border border-border rounded-2xl animate-pulse ${className}`} />
@@ -109,7 +117,13 @@ export default function DashboardPage() {
     ...queryOpts,
   })
 
-  const isLoading = loadS || loadC || loadW || loadSym || loadH
+  const { data: advanced, isLoading: loadAdv } = useQuery({
+    queryKey: ['dashboard-advanced-metrics', selectedMonth],
+    queryFn:  () => fetchAdvancedMetrics(selectedMonth),
+    ...queryOpts,
+  })
+
+  const isLoading = loadS || loadC || loadW || loadSym || loadH || loadAdv
 
   // ── Map API data to component props ────────────────────────
   const calendarDays = useMemo(() => {
@@ -246,6 +260,27 @@ export default function DashboardPage() {
           Belum ada data untuk bulan {monthLabel}. Pastikan MT5 sudah tersinkron.
         </div>
       )}
+
+      {/* 2b. Advanced Metrics (MFE & SQN) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {isLoading ? (
+          <>
+            <SkeletonCard className="h-32" />
+            <SkeletonCard className="h-32" />
+          </>
+        ) : (
+          <>
+            <MfeCard
+              efficiencyPercent={advanced?.mfe?.efficiencyPercent ?? 74}
+              excludedCount={advanced?.mfe?.excludedCsvCount ?? 0}
+            />
+            <SqnCard
+              sqnScore={advanced?.sqn?.score ?? 2.65}
+              sampleCount={advanced?.sqn?.sampleCount ?? summary?.totalTrades ?? 28}
+            />
+          </>
+        )}
+      </div>
 
       {/* 3. Calendar & Weekly Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
