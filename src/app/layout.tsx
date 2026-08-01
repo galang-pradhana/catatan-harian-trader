@@ -13,6 +13,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Catatan Harian Trader — Trading Journal Forex & Auto Sync MT5',
   description: 'Jurnal trading forex otomatis untuk trader retail MetaTrader 5. Evaluasi performa, tingkatkan disiplin, dan lacak statistik trading Anda.',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({
