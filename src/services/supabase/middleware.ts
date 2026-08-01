@@ -46,11 +46,12 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  // Public auth routes
+  // Public auth routes and API routes (API routes handle their own auth or token validation)
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register')
+  const isApiRoute = pathname.startsWith('/api/')
 
-  // If user is NOT logged in and trying to access protected routes (e.g., /dashboard, /trades, /mt5, etc.)
-  if (!user && !isAuthRoute && pathname !== '/preview') {
+  // If user is NOT logged in and trying to access protected UI routes (e.g., /dashboard, /trades, /mt5, etc.)
+  if (!user && !isAuthRoute && !isApiRoute && pathname !== '/preview') {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

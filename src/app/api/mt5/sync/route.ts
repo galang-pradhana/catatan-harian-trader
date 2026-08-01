@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const { createClient } = await import('@/services/supabase/server')
-    const supabase = await createClient()
+    const { createAdminClient } = await import('@/services/supabase/admin')
+    const supabase = createAdminClient()
 
     // 3. Find connection by token hash
     const { data: connection, error: connErr } = await supabase
