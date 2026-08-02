@@ -191,13 +191,16 @@ void SyncTradeHistory()
       string direction = (dealType == DEAL_TYPE_SELL) ? "sell" : "buy";
       double mfePeak = CalculateMFEPeak(symbol, direction, openTime, closeTime);
 
-      // Format datetime as ISO 8601: "2026-08-02T10:48:51+00:00"
+      // Format datetime as ISO 8601 using MqlDateTime struct (MQL5 way)
+      MqlDateTime dtOpen, dtClose;
+      TimeToStruct(openTime,  dtOpen);
+      TimeToStruct(closeTime, dtClose);
       string openTimeISO  = StringFormat("%04d-%02d-%02dT%02d:%02d:%02d+00:00",
-         TimeYear(openTime), TimeMonth(openTime), TimeDay(openTime),
-         TimeHour(openTime), TimeMinute(openTime), TimeSeconds(openTime));
+         dtOpen.year,  dtOpen.mon,  dtOpen.day,
+         dtOpen.hour,  dtOpen.min,  dtOpen.sec);
       string closeTimeISO = StringFormat("%04d-%02d-%02dT%02d:%02d:%02d+00:00",
-         TimeYear(closeTime), TimeMonth(closeTime), TimeDay(closeTime),
-         TimeHour(closeTime), TimeMinute(closeTime), TimeSeconds(closeTime));
+         dtClose.year, dtClose.mon, dtClose.day,
+         dtClose.hour, dtClose.min, dtClose.sec);
 
       string tradeItem = StringFormat(
          "{\"mt5_ticket_id\":%d,"
@@ -254,10 +257,12 @@ void SyncTradeHistory()
 
       string direction = (posType == POSITION_TYPE_BUY) ? "buy" : "sell";
 
-      // Format datetime as ISO 8601
+      // Format datetime as ISO 8601 using MqlDateTime struct (MQL5 way)
+      MqlDateTime dtOpen;
+      TimeToStruct(openTime, dtOpen);
       string openTimeISO = StringFormat("%04d-%02d-%02dT%02d:%02d:%02d+00:00",
-         TimeYear(openTime), TimeMonth(openTime), TimeDay(openTime),
-         TimeHour(openTime), TimeMinute(openTime), TimeSeconds(openTime));
+         dtOpen.year, dtOpen.mon, dtOpen.day,
+         dtOpen.hour, dtOpen.min, dtOpen.sec);
 
       // SL/TP: send null if 0 (not set)
       string slStr = (sl > 0) ? StringFormat("%.5f", sl) : "null";
