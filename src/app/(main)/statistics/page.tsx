@@ -75,10 +75,10 @@ export default function StatisticsPage() {
 
       {/* Top 4 Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Profit" value={`+$${totalProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} change="+12.45%" isPositive icon={<TrendingUp className="h-5 w-5" />} />
-        <StatCard title="Win Rate" value={`${winRate}%`} change="+3% vs lalu" isPositive icon={<Award className="h-5 w-5" />} />
-        <StatCard title="Profit Factor" value={String(profitFactor)} change="+0.15" isPositive icon={<Zap className="h-5 w-5" />} />
-        <StatCard title="Total Trade" value={String(totalTrades)} change="+4 trade" isPositive icon={<BarChart3 className="h-5 w-5" />} />
+        <StatCard title="Total Profit" value={`+$${totalProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} icon={TrendingUp} />
+        <StatCard title="Win Rate" value={`${winRate}%`} icon={Award} />
+        <StatCard title="Profit Factor" value={String(profitFactor)} icon={Zap} />
+        <StatCard title="Total Trade" value={String(totalTrades)} icon={BarChart3} />
       </div>
 
       {/* Charts Row */}
