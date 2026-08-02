@@ -1,16 +1,16 @@
 //+------------------------------------------------------------------+
 //|                                     CatatanHarianTrader.mq5      |
 //|                    Copyright 2026, Catatan Harian Trader         |
-//|                           https://your-domain.vercel.app         |
+//|                           https://catatan-harian-trader.vercel.app |
 //+------------------------------------------------------------------+
 #property copyright "Catatan Harian Trader"
-#property link      "https://your-domain.vercel.app"
+#property link      "https://catatan-harian-trader.vercel.app"
 #property version   "2.10"
 #property description "EA Connector v2.1: Auto Sync MT5 + MFE (Maximum Favorable Excursion) Exit Efficiency Calculation."
 
 //--- Inputs
 input string   InpApiToken        = "";               // API Token Unik (Salin dari Web Dashboard)
-input string   InpServerUrl       = "https://your-domain.vercel.app"; // URL Server App
+input string   InpServerUrl       = "https://catatan-harian-trader.vercel.app"; // URL Server App (Production)
 input int      InpSyncIntervalSec = 120;              // Interval Auto Sync (Detik, default: 120)
 input int      InpHistoryDays     = 30;               // Ambil history berapa hari ke belakang
 
