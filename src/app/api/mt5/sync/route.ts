@@ -6,19 +6,19 @@ import { hashToken } from '@/utils/token'
 // Note: MT5 TimeToString() format: "2026.08.02 10:48:51" (NOT ISO 8601)
 // We accept any string for datetime fields and normalize them server-side.
 const TradePayloadSchema = z.object({
-  mt5_ticket_id:  z.number().int().positive(),
-  symbol:         z.string().min(1).max(20),
+  mt5_ticket_id:  z.union([z.number(), z.string().transform((val) => Number(val))]),
+  symbol:         z.string().min(1).max(30),
   direction:      z.enum(['buy', 'sell']),
-  volume:         z.number().positive(),
-  open_price:     z.number().positive(),
+  volume:         z.number(),
+  open_price:     z.number(),
   close_price:    z.number().nullable().optional(),
   open_time:      z.string().min(1),  // MT5 format: "2026.08.02 10:48:51" or ISO
   close_time:     z.string().min(1).nullable().optional(),
   sl:             z.number().nullable().optional(),
   tp:             z.number().nullable().optional(),
   pnl:            z.number().nullable().optional(),
-  commission:     z.number().default(0),
-  swap:           z.number().default(0),
+  commission:     z.number().optional().default(0),
+  swap:           z.number().optional().default(0),
   mfe_value:      z.number().nullable().optional(),
   status:         z.enum(['open', 'closed']),
 })
@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
     // 1. Validate payload
     const parsed = SyncPayloadSchema.safeParse(body)
     if (!parsed.success) {
+      console.error('[sync] payload validation error:', JSON.stringify(parsed.error.flatten()))
       return NextResponse.json(
         {
           error:   'INVALID_PAYLOAD',

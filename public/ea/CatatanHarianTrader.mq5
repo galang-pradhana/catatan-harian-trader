@@ -159,17 +159,23 @@ void SyncTradeHistory()
       if(ticket == 0) continue;
 
       ENUM_DEAL_ENTRY entryType = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket, DEAL_ENTRY);
-      if(entryType != DEAL_ENTRY_OUT) continue;
+      if(entryType != DEAL_ENTRY_OUT && entryType != DEAL_ENTRY_INOUT) continue;
 
-      string  symbol      = HistoryDealGetString(ticket, DEAL_SYMBOL);
-      int     dealType    = (int)HistoryDealGetInteger(ticket, DEAL_TYPE);
+      int dealType = (int)HistoryDealGetInteger(ticket, DEAL_TYPE);
+      if(dealType != DEAL_TYPE_BUY && dealType != DEAL_TYPE_SELL) continue; // Skip balance/deposit/commission deals
+
+      string symbol = HistoryDealGetString(ticket, DEAL_SYMBOL);
+      if(StringLen(symbol) == 0) continue; // Skip empty symbol deals
+
+      long posId = HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
+      if(posId <= 0) continue; // Skip deals with invalid position ID
+
       double  volume      = HistoryDealGetDouble(ticket, DEAL_VOLUME);
       double  price       = HistoryDealGetDouble(ticket, DEAL_PRICE);
       double  pnl         = HistoryDealGetDouble(ticket, DEAL_PROFIT);
       double  commission  = HistoryDealGetDouble(ticket, DEAL_COMMISSION);
       double  swap        = HistoryDealGetDouble(ticket, DEAL_SWAP);
       datetime closeTime  = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
-      long   posId        = HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
 
       double  openPrice   = 0;
       datetime openTime   = 0;
@@ -185,6 +191,10 @@ void SyncTradeHistory()
          openTime  = (datetime)HistoryDealGetInteger(tk2, DEAL_TIME);
          break;
       }
+
+      // Fallback if entry deal was opened outside HistorySelect timeframe
+      if(openPrice <= 0) openPrice = price;
+      if(openTime <= 0)  openTime  = closeTime;
 
       // MT5 DEAL_TYPE_BUY = closing deal for a BUY position (direction = buy)
       // MT5 DEAL_TYPE_SELL = closing deal for a SELL position (direction = sell)
@@ -203,7 +213,7 @@ void SyncTradeHistory()
          dtClose.hour, dtClose.min, dtClose.sec);
 
       string tradeItem = StringFormat(
-         "{\"mt5_ticket_id\":%d,"
+         "{\"mt5_ticket_id\":%s,"
          "\"symbol\":\"%s\","
          "\"direction\":\"%s\","
          "\"volume\":%.2f,"
@@ -218,7 +228,7 @@ void SyncTradeHistory()
          "\"swap\":%.2f,"
          "\"mfe_value\":%.5f,"
          "\"status\":\"closed\"}",
-         (int)posId,
+         IntegerToString(posId),
          symbol,
          direction,
          volume,
@@ -244,7 +254,12 @@ void SyncTradeHistory()
       ulong ticket = PositionGetTicket(i);
       if(ticket == 0) continue;
 
-      string  symbol     = PositionGetString(POSITION_SYMBOL);
+      string symbol = PositionGetString(POSITION_SYMBOL);
+      if(StringLen(symbol) == 0) continue;
+
+      long posId = (long)PositionGetInteger(POSITION_IDENTIFIER);
+      if(posId <= 0) continue;
+
       int     posType    = (int)PositionGetInteger(POSITION_TYPE);
       double  volume     = PositionGetDouble(POSITION_VOLUME);
       double  openPrice  = PositionGetDouble(POSITION_PRICE_OPEN);
@@ -253,7 +268,6 @@ void SyncTradeHistory()
       double  pnl        = PositionGetDouble(POSITION_PROFIT);
       double  swap       = PositionGetDouble(POSITION_SWAP);
       datetime openTime  = (datetime)PositionGetInteger(POSITION_TIME);
-      long    posId      = (long)PositionGetInteger(POSITION_IDENTIFIER);
 
       string direction = (posType == POSITION_TYPE_BUY) ? "buy" : "sell";
 
@@ -269,7 +283,7 @@ void SyncTradeHistory()
       string tpStr = (tp > 0) ? StringFormat("%.5f", tp) : "null";
 
       string tradeItem = StringFormat(
-         "{\"mt5_ticket_id\":%d,"
+         "{\"mt5_ticket_id\":%s,"
          "\"symbol\":\"%s\","
          "\"direction\":\"%s\","
          "\"volume\":%.2f,"
@@ -284,7 +298,7 @@ void SyncTradeHistory()
          "\"swap\":%.2f,"
          "\"mfe_value\":null,"
          "\"status\":\"open\"}",
-         (int)posId,
+         IntegerToString(posId),
          symbol,
          direction,
          volume,
