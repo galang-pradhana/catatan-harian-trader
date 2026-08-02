@@ -6,17 +6,23 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
-  History,
+  BookOpen,
+  Calendar,
+  BarChart3,
+  Lightbulb,
+  Brain,
+  Target,
+  FileText,
+  Trophy,
+  Bell,
   Link2,
-  Tags,
   Settings,
   Sun,
   Moon,
-  ChevronLeft,
-  ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
+  Crown,
 } from 'lucide-react'
 
 import { useThemeStore } from '@/store/theme-store'
@@ -24,11 +30,18 @@ import { useSidebarStore } from '@/store/sidebar-store'
 import { cn } from '@/lib/utils'
 
 export const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/trades', label: 'Riwayat Trade', icon: History },
-  { href: '/mt5', label: 'Hubungkan MT5', icon: Link2 },
-  { href: '/strategies', label: 'Strategi & Tag', icon: Tags },
-  { href: '/settings', label: 'Pengaturan', icon: Settings },
+  { href: '/dashboard',   label: 'Dashboard',         icon: LayoutDashboard },
+  { href: '/trades',      label: 'Jurnal Trading',    icon: BookOpen },
+  { href: '/calendar',    label: 'Kalender',          icon: Calendar },
+  { href: '/statistics',  label: 'Statistik',         icon: BarChart3 },
+  { href: '/analysis',    label: 'Analisis',          icon: Lightbulb },
+  { href: '/psychology',  label: 'Psikologi Trading', icon: Brain },
+  { href: '/strategies',  label: 'Strategi',          icon: Target },
+  { href: '/notes',       label: 'Catatan',           icon: FileText },
+  { href: '/goals',       label: 'Tujuan',            icon: Trophy },
+  { href: '/reminders',   label: 'Pengingat',         icon: Bell },
+  { href: '/mt5',         label: 'Import / MT5',      icon: Link2 },
+  { href: '/settings',    label: 'Pengaturan',        icon: Settings },
 ]
 
 export function Sidebar() {
@@ -91,7 +104,8 @@ export function Sidebar() {
       </div>
 
       {/* Nav Links */}
-      <nav className="flex-1 space-y-1.5 w-full">
+      <nav className="flex-1 space-y-1 w-full overflow-y-auto pr-0.5 scrollbar-thin">
+
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname.startsWith(item.href)
