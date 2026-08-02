@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { hashToken } from '@/utils/token'
 
 // ── Zod schema for individual trade payload from EA ──────────
+// Note: MT5 TimeToString() format: "2026.08.02 10:48:51" (NOT ISO 8601)
+// We accept any string for datetime fields and normalize them server-side.
 const TradePayloadSchema = z.object({
   mt5_ticket_id:  z.number().int().positive(),
   symbol:         z.string().min(1).max(20),
@@ -10,21 +12,36 @@ const TradePayloadSchema = z.object({
   volume:         z.number().positive(),
   open_price:     z.number().positive(),
   close_price:    z.number().nullable().optional(),
-  open_time:      z.string().datetime({ offset: true }),
-  close_time:     z.string().datetime({ offset: true }).nullable().optional(),
+  open_time:      z.string().min(1),  // MT5 format: "2026.08.02 10:48:51" or ISO
+  close_time:     z.string().min(1).nullable().optional(),
   sl:             z.number().nullable().optional(),
   tp:             z.number().nullable().optional(),
   pnl:            z.number().nullable().optional(),
   commission:     z.number().default(0),
   swap:           z.number().default(0),
-  mfe_value:       z.number().nullable().optional(),
-  status:          z.enum(['open', 'closed']),
+  mfe_value:      z.number().nullable().optional(),
+  status:         z.enum(['open', 'closed']),
 })
 
 const SyncPayloadSchema = z.object({
   token:  z.string().min(1),
   trades: z.array(TradePayloadSchema).max(500), // safety cap
 })
+
+/**
+ * Normalize MT5 TimeToString format to ISO 8601
+ * Input:  "2026.08.02 10:48:51"  →  "2026-08-02T10:48:51+00:00"
+ * Input:  "2026-08-02T10:48:51+00:00"  →  unchanged (already ISO)
+ */
+function normalizeMT5DateTime(dt: string | null | undefined): string | null {
+  if (!dt) return null
+  // Already ISO format
+  if (dt.includes('T')) return dt
+  // MT5 format: "2026.08.02 10:48:51"
+  const normalized = dt.replace(/\./g, '-').replace(' ', 'T') + '+00:00'
+  return normalized
+}
+
 
 // Detect trading session from open_time UTC hour
 function detectSession(openTimeStr: string): 'asia' | 'london' | 'newyork' | null {
@@ -69,10 +86,23 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const { createAdminClient } = await import('@/services/supabase/admin')
-    const supabase = createAdminClient()
+    let supabase
+    try {
+      const { createAdminClient } = await import('@/services/supabase/admin')
+      supabase = createAdminClient()
+    } catch (configErr: any) {
+      console.error('[Sync] Admin client error:', configErr?.message)
+      return NextResponse.json(
+        {
+          error: 'SERVER_MISCONFIGURED',
+          message: 'SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi di server.',
+        },
+        { status: 503 }
+      )
+    }
 
     // 3. Find connection by token hash
+    // Requires SUPABASE_SERVICE_ROLE_KEY to bypass RLS (EA tidak punya user session)
     const { data: connection, error: connErr } = await supabase
       .from('mt5_connections')
       .select('id, user_id, status')
@@ -80,6 +110,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (connErr || !connection) {
+      console.error('[Sync] Token not found. Hash:', tokenHash, 'DB Error:', connErr?.message)
       return NextResponse.json(
         { error: 'MT5_INVALID_TOKEN', message: 'Token tidak valid atau sudah dicabut' },
         { status: 401 }
@@ -106,10 +137,12 @@ export async function POST(request: NextRequest) {
       volume:            t.volume,
       open_price:        t.open_price,
       close_price:       t.close_price ?? null,
-      open_time:         t.open_time,
-      close_time:        t.close_time ?? null,
-      sl:                t.sl ?? null,
-      tp:                t.tp ?? null,
+      // Normalize MT5 datetime format "2026.08.02 10:48:51" → ISO 8601
+      open_time:         normalizeMT5DateTime(t.open_time)!,
+      close_time:        normalizeMT5DateTime(t.close_time ?? null),
+      // EA sends 0 when no SL/TP set — treat 0 as null
+      sl:                (t.sl && t.sl !== 0) ? t.sl : null,
+      tp:                (t.tp && t.tp !== 0) ? t.tp : null,
       pnl:               t.pnl ?? null,
       commission:        t.commission,
       swap:              t.swap,

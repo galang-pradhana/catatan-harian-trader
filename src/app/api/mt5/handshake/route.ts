@@ -32,10 +32,24 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const { createAdminClient } = await import('@/services/supabase/admin')
-    const supabase = createAdminClient()
+    let supabase
+    try {
+      const { createAdminClient } = await import('@/services/supabase/admin')
+      supabase = createAdminClient()
+    } catch (configErr: any) {
+      console.error('[Handshake] Admin client error:', configErr?.message)
+      return NextResponse.json(
+        {
+          error: 'SERVER_MISCONFIGURED',
+          message:
+            'Server belum dikonfigurasi dengan benar. SUPABASE_SERVICE_ROLE_KEY wajib diset di Vercel Environment Variables.',
+        },
+        { status: 503 }
+      )
+    }
 
     // 1. Find connection matching token hash
+    // Requires SUPABASE_SERVICE_ROLE_KEY to bypass RLS (EA tidak punya user session)
     const { data: connection, error: findError } = await supabase
       .from('mt5_connections')
       .select('id, status, user_id, account_number')
@@ -43,6 +57,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (findError || !connection) {
+      console.error('[Handshake] Token not found. Hash:', tokenHash, 'DB Error:', findError?.message)
       return NextResponse.json(
         {
           error: 'MT5_INVALID_TOKEN',

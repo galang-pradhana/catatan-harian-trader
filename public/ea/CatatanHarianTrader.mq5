@@ -186,8 +186,18 @@ void SyncTradeHistory()
          break;
       }
 
-      string direction = (dealType == DEAL_TYPE_BUY) ? "sell" : "buy";
+      // MT5 DEAL_TYPE_BUY = closing deal for a BUY position (direction = buy)
+      // MT5 DEAL_TYPE_SELL = closing deal for a SELL position (direction = sell)
+      string direction = (dealType == DEAL_TYPE_SELL) ? "sell" : "buy";
       double mfePeak = CalculateMFEPeak(symbol, direction, openTime, closeTime);
+
+      // Format datetime as ISO 8601: "2026-08-02T10:48:51+00:00"
+      string openTimeISO  = StringFormat("%04d-%02d-%02dT%02d:%02d:%02d+00:00",
+         TimeYear(openTime), TimeMonth(openTime), TimeDay(openTime),
+         TimeHour(openTime), TimeMinute(openTime), TimeSeconds(openTime));
+      string closeTimeISO = StringFormat("%04d-%02d-%02dT%02d:%02d:%02d+00:00",
+         TimeYear(closeTime), TimeMonth(closeTime), TimeDay(closeTime),
+         TimeHour(closeTime), TimeMinute(closeTime), TimeSeconds(closeTime));
 
       string tradeItem = StringFormat(
          "{\"mt5_ticket_id\":%d,"
@@ -198,8 +208,8 @@ void SyncTradeHistory()
          "\"close_price\":%.5f,"
          "\"open_time\":\"%s\","
          "\"close_time\":\"%s\","
-         "\"sl\":0,"
-         "\"tp\":0,"
+         "\"sl\":null,"
+         "\"tp\":null,"
          "\"pnl\":%.2f,"
          "\"commission\":%.2f,"
          "\"swap\":%.2f,"
@@ -211,8 +221,8 @@ void SyncTradeHistory()
          volume,
          openPrice,
          price,
-         TimeToString(openTime, TIME_DATE | TIME_MINUTES | TIME_SECONDS),
-         TimeToString(closeTime, TIME_DATE | TIME_MINUTES | TIME_SECONDS),
+         openTimeISO,
+         closeTimeISO,
          pnl,
          commission,
          swap,
@@ -244,6 +254,15 @@ void SyncTradeHistory()
 
       string direction = (posType == POSITION_TYPE_BUY) ? "buy" : "sell";
 
+      // Format datetime as ISO 8601
+      string openTimeISO = StringFormat("%04d-%02d-%02dT%02d:%02d:%02d+00:00",
+         TimeYear(openTime), TimeMonth(openTime), TimeDay(openTime),
+         TimeHour(openTime), TimeMinute(openTime), TimeSeconds(openTime));
+
+      // SL/TP: send null if 0 (not set)
+      string slStr = (sl > 0) ? StringFormat("%.5f", sl) : "null";
+      string tpStr = (tp > 0) ? StringFormat("%.5f", tp) : "null";
+
       string tradeItem = StringFormat(
          "{\"mt5_ticket_id\":%d,"
          "\"symbol\":\"%s\","
@@ -253,8 +272,8 @@ void SyncTradeHistory()
          "\"close_price\":null,"
          "\"open_time\":\"%s\","
          "\"close_time\":null,"
-         "\"sl\":%.5f,"
-         "\"tp\":%.5f,"
+         "\"sl\":%s,"
+         "\"tp\":%s,"
          "\"pnl\":%.2f,"
          "\"commission\":0,"
          "\"swap\":%.2f,"
@@ -265,9 +284,9 @@ void SyncTradeHistory()
          direction,
          volume,
          openPrice,
-         TimeToString(openTime, TIME_DATE | TIME_MINUTES | TIME_SECONDS),
-         sl,
-         tp,
+         openTimeISO,
+         slStr,
+         tpStr,
          pnl,
          swap
       );
