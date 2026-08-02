@@ -19,7 +19,9 @@ export async function GET(request: NextRequest) {
     const connectionId  = searchParams.get('connectionId')
     const startDate     = searchParams.get('startDate')
     const endDate       = searchParams.get('endDate')
+    const date          = searchParams.get('date') // 'YYYY-MM-DD'
     const symbol        = searchParams.get('symbol')
+    const status        = searchParams.get('status') // 'open' | 'closed' | null
     const strategyId    = searchParams.get('strategyId')
     const result        = searchParams.get('result') // 'profit' | 'loss' | null
     const journalStatus = searchParams.get('journalStatus') // 'complete' | 'incomplete' | null
@@ -48,9 +50,16 @@ export async function GET(request: NextRequest) {
     // Optional filters
     if (connectionId)  query = query.eq('mt5_connection_id', connectionId)
     if (symbol)        query = query.ilike('symbol', `%${symbol}%`)
+    if (status)        query = query.eq('status', status)
     if (journalStatus) query = query.eq('journal_status', journalStatus)
     if (startDate)     query = query.gte('open_time', startDate)
     if (endDate)       query = query.lte('open_time', endDate)
+
+    if (date) {
+      query = query
+        .gte('open_time', `${date}T00:00:00.000Z`)
+        .lte('open_time', `${date}T23:59:59.999Z`)
+    }
 
     if (result === 'profit') query = query.gt('pnl', 0)
     if (result === 'loss')   query = query.lt('pnl', 0)

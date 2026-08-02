@@ -9,9 +9,12 @@ import { TradeFilter, FilterState } from '@/components/shared/trade-filter'
 import { Button } from '@/components/ui/button'
 import type { Trade } from '@/types/trade'
 
+import { useSearchParams } from 'next/navigation'
+
 const initialFilterState: FilterState = {
   search:        '',
   symbol:        'all',
+  status:        'all',
   result:        'all',
   journalStatus: 'all',
   strategyId:    'all',
@@ -65,8 +68,10 @@ async function fetchTrades(filters: FilterState, page: number): Promise<{ trades
   params.set('page', String(page))
   params.set('limit', '20')
   if (filters.symbol !== 'all')        params.set('symbol', filters.symbol)
+  if (filters.status !== 'all')        params.set('status', filters.status)
   if (filters.result !== 'all')        params.set('result', filters.result)
   if (filters.journalStatus !== 'all') params.set('journalStatus', filters.journalStatus)
+  if (filters.date)                    params.set('date', filters.date)
 
   const res = await fetch(`/api/trades?${params.toString()}`)
   if (!res.ok) throw new Error('Gagal memuat data trade')
@@ -77,10 +82,22 @@ async function fetchTrades(filters: FilterState, page: number): Promise<{ trades
   }
 }
 
-export default function TradesPage() {
+function TradesPageContent() {
   const router = useRouter()
-  const [filters, setFilters] = useState<FilterState>(initialFilterState)
+  const searchParams = useSearchParams()
+  const dateParam = searchParams.get('date')
+
+  const [filters, setFilters] = useState<FilterState>(() => ({
+    ...initialFilterState,
+    date: dateParam || undefined,
+  }))
   const [page, setPage] = useState(1)
+
+  React.useEffect(() => {
+    if (dateParam) {
+      setFilters((prev) => ({ ...prev, date: dateParam }))
+    }
+  }, [dateParam])
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['trades', filters, page],
@@ -223,7 +240,7 @@ export default function TradesPage() {
                 : 'Hubungkan akun MT5 dan pastikan EA sudah berjalan untuk mulai sync trade.'}
             </p>
           </div>
-          {(filters.search || filters.symbol !== 'all') ? (
+          {(filters.search || filters.symbol !== 'all' || filters.status !== 'all' || filters.date) ? (
             <Button variant="outline" size="sm" onClick={() => { setFilters(initialFilterState); setPage(1) }}>
               Reset Filter
             </Button>
@@ -237,3 +254,18 @@ export default function TradesPage() {
     </div>
   )
 }
+
+export default function TradesPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex items-center justify-center p-12">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        </div>
+      }
+    >
+      <TradesPageContent />
+    </React.Suspense>
+  )
+}
+

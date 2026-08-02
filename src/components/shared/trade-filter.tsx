@@ -9,9 +9,11 @@ import { cn } from '@/lib/utils'
 export interface FilterState {
   search: string
   symbol: string
+  status: 'all' | 'open' | 'closed'
   result: 'all' | 'profit' | 'loss'
   journalStatus: 'all' | 'complete' | 'incomplete'
   strategyId: string
+  date?: string
 }
 
 export interface TradeFilterProps {
@@ -30,9 +32,11 @@ export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterPro
   const hasActiveFilters =
     filters.search ||
     filters.symbol !== 'all' ||
+    filters.status !== 'all' ||
     filters.result !== 'all' ||
     filters.journalStatus !== 'all' ||
-    filters.strategyId !== 'all'
+    filters.strategyId !== 'all' ||
+    Boolean(filters.date)
 
   return (
     <div className="bg-card border border-border rounded-2xl p-4 shadow-sm space-y-3">
@@ -88,10 +92,26 @@ export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterPro
       {/* Filter Inputs Grid */}
       <div
         className={cn(
-          'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1',
+          'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 pt-1',
           !isExpandedMobile && 'hidden md:grid'
         )}
       >
+        {/* Status Trade Select (Open/Closed) */}
+        <div>
+          <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase">
+            Status Posisi
+          </label>
+          <select
+            value={filters.status}
+            onChange={(e) => handleChange('status', e.target.value)}
+            className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[40px]"
+          >
+            <option value="all">Semua Status</option>
+            <option value="open">🟢 Running (Open)</option>
+            <option value="closed">🏁 Selesai (Closed)</option>
+          </select>
+        </div>
+
         {/* Symbol Select */}
         <div>
           <label className="block text-[11px] font-semibold text-muted-foreground mb-1 uppercase">
@@ -138,7 +158,7 @@ export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterPro
             onChange={(e) => handleChange('journalStatus', e.target.value)}
             className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[40px]"
           >
-            <option value="all">Semua Status</option>
+            <option value="all">Semua Jurnal</option>
             <option value="complete">Lengkap</option>
             <option value="incomplete">Belum Lengkap</option>
           </select>

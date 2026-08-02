@@ -85,16 +85,29 @@ export function PnLCalendar({ days, monthName = 'Bulan Ini' }: PnLCalendarProps)
           const hasTrade = pnl !== null && pnl !== undefined
           const isProfit = (pnl || 0) >= 0
 
+          // Construct YYYY-MM-DD date string
+          const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+
           return (
             <div
               key={dayNum}
+              onClick={() => {
+                if (hasTrade) {
+                  window.location.href = `/trades?date=${formattedDate}`
+                }
+              }}
+              title={
+                hasTrade
+                  ? `Tanggal ${dayNum} ${monthName}: ${isProfit ? '+' : ''}$${Math.abs(pnl).toFixed(2)} (${dayData?.tradesCount || 0} trade). Klik untuk lihat detail.`
+                  : `Tanggal ${dayNum} ${monthName}: Tidak ada trade`
+              }
               className={cn(
-                'aspect-square sm:h-16 rounded-xl p-1.5 border flex flex-col justify-between transition-all hover:scale-[1.03] select-none',
+                'aspect-square sm:h-16 rounded-xl p-1.5 border flex flex-col justify-between transition-all select-none',
                 hasTrade
                   ? isProfit
-                    ? 'bg-profit/15 border-profit/40 text-profit'
-                    : 'bg-loss/15 border-loss/40 text-loss'
-                  : 'bg-muted/20 border-border/40 text-muted-foreground'
+                    ? 'bg-profit/15 border-profit/40 text-profit hover:bg-profit/25 hover:border-profit cursor-pointer hover:scale-[1.05] shadow-sm'
+                    : 'bg-loss/15 border-loss/40 text-loss hover:bg-loss/25 hover:border-loss cursor-pointer hover:scale-[1.05] shadow-sm'
+                  : 'bg-muted/20 border-border/40 text-muted-foreground opacity-75'
               )}
             >
               <span className="text-[10px] sm:text-xs font-bold leading-none">
@@ -117,3 +130,4 @@ export function PnLCalendar({ days, monthName = 'Bulan Ini' }: PnLCalendarProps)
     </div>
   )
 }
+
