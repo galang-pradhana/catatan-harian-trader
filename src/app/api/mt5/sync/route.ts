@@ -3,24 +3,22 @@ import { z } from 'zod'
 import { hashToken } from '@/utils/token'
 
 // ── Zod schema for individual trade payload from EA ──────────
-// Note: MT5 TimeToString() format: "2026.08.02 10:48:51" (NOT ISO 8601)
-// We accept any string for datetime fields and normalize them server-side.
 const TradePayloadSchema = z.object({
-  mt5_ticket_id:  z.union([z.number(), z.string().transform((val) => Number(val))]),
-  symbol:         z.string().min(1).max(30),
-  direction:      z.enum(['buy', 'sell']),
-  volume:         z.number(),
-  open_price:     z.number(),
-  close_price:    z.number().nullable().optional(),
-  open_time:      z.string().min(1),  // MT5 format: "2026.08.02 10:48:51" or ISO
-  close_time:     z.string().min(1).nullable().optional(),
-  sl:             z.number().nullable().optional(),
-  tp:             z.number().nullable().optional(),
-  pnl:            z.number().nullable().optional(),
-  commission:     z.number().optional().default(0),
-  swap:           z.number().optional().default(0),
-  mfe_value:      z.number().nullable().optional(),
-  status:         z.enum(['open', 'closed']),
+  mt5_ticket_id:  z.coerce.number(),
+  symbol:         z.coerce.string().min(1).max(30),
+  direction:      z.preprocess((val) => String(val || 'buy').toLowerCase(), z.enum(['buy', 'sell'])),
+  volume:         z.coerce.number().optional().default(0.01),
+  open_price:     z.coerce.number().optional().default(0),
+  close_price:    z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : Number(val)), z.number().nullable().optional()),
+  open_time:      z.coerce.string().min(1),
+  close_time:     z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : String(val)), z.string().nullable().optional()),
+  sl:             z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : Number(val)), z.number().nullable().optional()),
+  tp:             z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : Number(val)), z.number().nullable().optional()),
+  pnl:            z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : Number(val)), z.number().nullable().optional()),
+  commission:     z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? 0 : Number(val)), z.number().optional().default(0)),
+  swap:           z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? 0 : Number(val)), z.number().optional().default(0)),
+  mfe_value:      z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : Number(val)), z.number().nullable().optional()),
+  status:         z.preprocess((val) => String(val || 'closed').toLowerCase(), z.enum(['open', 'closed'])),
 })
 
 const SyncPayloadSchema = z.object({
@@ -45,11 +43,16 @@ function normalizeMT5DateTime(dt: string | null | undefined): string | null {
 
 // Detect trading session from open_time UTC hour
 function detectSession(openTimeStr: string): 'asia' | 'london' | 'newyork' | null {
-  const hour = new Date(openTimeStr).getUTCHours()
-  if (hour >= 0 && hour < 8)   return 'asia'
-  if (hour >= 8 && hour < 13)  return 'london'
-  if (hour >= 13 && hour < 22) return 'newyork'
-  return null
+  try {
+    const hour = new Date(openTimeStr).getUTCHours()
+    if (isNaN(hour)) return null
+    if (hour >= 0 && hour < 8)   return 'asia'
+    if (hour >= 8 && hour < 13)  return 'london'
+    if (hour >= 13 && hour < 22) return 'newyork'
+    return null
+  } catch {
+    return null
+  }
 }
 
 // POST /api/mt5/sync — Called by EA every 120 seconds
@@ -60,11 +63,15 @@ export async function POST(request: NextRequest) {
     // 1. Validate payload
     const parsed = SyncPayloadSchema.safeParse(body)
     if (!parsed.success) {
-      console.error('[sync] payload validation error:', JSON.stringify(parsed.error.flatten()))
+      const fieldErrors = parsed.error.flatten().fieldErrors
+      const errSummary = Object.entries(fieldErrors)
+        .map(([k, v]) => `${k}: ${v?.join(', ')}`)
+        .join('; ')
+      console.error('[sync] payload validation error:', errSummary)
       return NextResponse.json(
         {
           error:   'INVALID_PAYLOAD',
-          message: 'Payload tidak valid',
+          message: `Payload tidak valid (${errSummary || 'Check format'})`,
           details: parsed.error.flatten(),
         },
         { status: 400 }
