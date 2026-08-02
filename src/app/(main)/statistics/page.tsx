@@ -14,7 +14,7 @@ import {
   Filter,
 } from 'lucide-react'
 import { StatCard } from '@/components/shared/stat-card'
-import { PerformanceChart } from '@/components/shared/performance-chart'
+import { WeeklyChart } from '@/components/shared/weekly-chart'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -92,7 +92,7 @@ export default function StatisticsPage() {
             </div>
           </div>
           <div className="h-72">
-            <PerformanceChart />
+            <WeeklyChart data={[]} />
           </div>
         </div>
 
