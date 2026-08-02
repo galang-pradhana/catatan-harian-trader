@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/shared/toast'
 import { createClient } from '@/services/supabase/client'
+import { cn } from '@/lib/utils'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -132,14 +133,42 @@ export default function SettingsPage() {
     router.push('/login')
   }
 
+  const [activeTab, setActiveTab] = useState<'account' | 'preferences' | 'security' | 'notifications' | 'backup'>('account')
+
   return (
-    <div className="space-y-6 max-w-3xl mx-auto pb-12">
-      {/* Header */}
-      <div className="border-b border-border pb-5">
-        <h1 className="text-2xl font-bold text-foreground">Pengaturan Akun</h1>
-        <p className="text-xs text-muted-foreground mt-1">
-          Kelola profil pengguna, keamanan kata sandi, dan preferensi tampilan.
-        </p>
+    <div className="space-y-6 max-w-4xl mx-auto pb-12">
+      {/* Header & Sub-tabs Navigation */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Pengaturan</h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Kelola profil pengguna, preferensi tampilan, notifikasi, dan keamanan akun Anda.
+          </p>
+        </div>
+
+        {/* Sub-tabs matching Screen 12 mockup */}
+        <div className="flex items-center gap-1 bg-card border border-border rounded-xl p-1 shadow-sm overflow-x-auto">
+          {[
+            { id: 'account',       label: 'Akun' },
+            { id: 'preferences',   label: 'Preferensi' },
+            { id: 'security',      label: 'Keamanan' },
+            { id: 'notifications', label: 'Notifikasi' },
+            { id: 'backup',        label: 'Backup' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as typeof activeTab)}
+              className={cn(
+                'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap',
+                activeTab === tab.id
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* SECTION 1: Profil Pengguna */}
