@@ -15,10 +15,12 @@ export function TradeListItem({ trade }: TradeListItemProps) {
   const isBuy = trade.direction === 'buy'
   const isProfit = (trade.pnl || 0) >= 0
   const isComplete = trade.journalStatus === 'complete'
+  const isOpen = trade.status === 'open'
+  const isLoss = trade.status === 'closed' && (trade.pnl || 0) < 0
 
   const formattedPnl = trade.pnl !== undefined
     ? `${isProfit ? '+' : ''}$${trade.pnl.toFixed(2)}`
-    : 'Open'
+    : 'Running'
 
   const exitInfo = analyzeTradeExit({
     direction: trade.direction,
@@ -33,7 +35,16 @@ export function TradeListItem({ trade }: TradeListItemProps) {
   return (
     <Link
       href={`/trades/${trade.id}`}
-      className="block bg-card border border-border rounded-xl p-4 transition-all hover:border-primary/40 hover:shadow-md active:scale-[0.99] group"
+      className={cn(
+        'block bg-card border rounded-2xl p-4 transition-all hover:shadow-md active:scale-[0.99] group relative overflow-hidden',
+        isOpen
+          ? 'border-primary/40 bg-primary/5'
+          : !isComplete
+          ? 'border-amber-500/50 bg-amber-500/5 ring-1 ring-amber-500/20'
+          : isLoss
+          ? 'border-border border-l-4 border-l-destructive/80'
+          : 'border-border hover:border-primary/40'
+      )}
     >
       <div className="flex items-center justify-between gap-3">
         {/* Left: Symbol & Direction */}
@@ -95,25 +106,33 @@ export function TradeListItem({ trade }: TradeListItemProps) {
 
         {/* Right: PnL & Completeness Status */}
         <div className="text-right flex flex-col items-end gap-1">
-          <span
-            className={cn(
-              'font-mono font-bold text-sm sm:text-base',
-              trade.status === 'open'
-                ? 'text-amber-400'
-                : isProfit
-                ? 'text-profit'
-                : 'text-loss'
+          <div className="flex items-center gap-1.5">
+            {isOpen && (
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              </span>
             )}
-          >
-            {formattedPnl}
-          </span>
+            <span
+              className={cn(
+                'font-mono font-bold text-sm sm:text-base',
+                isOpen
+                  ? 'text-primary'
+                  : isProfit
+                  ? 'text-profit'
+                  : 'text-loss'
+              )}
+            >
+              {formattedPnl}
+            </span>
+          </div>
 
           <span
             className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border',
+              'inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border',
               isComplete
                 ? 'bg-profit/10 text-profit border-profit/30'
-                : 'bg-muted text-muted-foreground border-border'
+                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
             )}
           >
             {isComplete ? (
@@ -122,7 +141,7 @@ export function TradeListItem({ trade }: TradeListItemProps) {
               </>
             ) : (
               <>
-                <AlertCircle className="h-3 w-3 shrink-0" /> Belum Lengkap
+                <AlertCircle className="h-3 w-3 shrink-0" /> Belum Diisi
               </>
             )}
           </span>

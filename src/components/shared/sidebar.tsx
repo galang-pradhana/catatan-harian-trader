@@ -35,7 +35,6 @@ import { createClient } from '@/services/supabase/client'
 export const navItems = [
   { href: '/dashboard',   label: 'Dashboard',         icon: LayoutDashboard },
   { href: '/trades',      label: 'Jurnal Trading',    icon: BookOpen },
-  { href: '/calendar',    label: 'Kalender',          icon: Calendar },
   { href: '/compounding', label: 'Compounding',       icon: Calculator },
   { href: '/statistics',  label: 'Statistik',         icon: BarChart3 },
   { href: '/analysis',    label: 'Analisis',          icon: Lightbulb },

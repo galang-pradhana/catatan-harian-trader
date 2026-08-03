@@ -3,20 +3,18 @@
 import React, { useState } from 'react'
 import {
   Lightbulb,
-  TrendingUp,
-  TrendingDown,
-  Zap,
-  Target,
   Sparkles,
-  Clock,
-  ArrowUpDown,
   CheckCircle2,
   AlertTriangle,
+  Brain,
+  BarChart3
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MfeCard } from '@/components/shared/mfe-card'
+import { SqnCard } from '@/components/shared/sqn-card'
 
 export default function AnalysisPage() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'pair' | 'strategy' | 'time' | 'direction'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'sqn_mfe' | 'pair' | 'strategy'>('overview')
 
   return (
     <div className="space-y-6">
@@ -24,10 +22,10 @@ export default function AnalysisPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Lightbulb className="h-6 w-6 text-primary" /> Analisis Performa &amp; Insights
+            <Lightbulb className="h-6 w-6 text-primary" /> Analisis Performa &amp; Kualitas Sistem
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Evaluasi otomatis berdasarkan data historis untuk menemukan edge dan area perbaikan trading Anda.
+            Evaluasi mendalam efisiensi exit (MFE), skor kualitas sistem (SQN), dan insights trading Anda.
           </p>
         </div>
 
@@ -35,10 +33,9 @@ export default function AnalysisPage() {
         <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl p-1 shadow-sm overflow-x-auto">
           {[
             { id: 'overview',  label: 'Overview' },
-            { id: 'pair',      label: 'Pair' },
+            { id: 'sqn_mfe',   label: 'SQN & MFE Analytics' },
+            { id: 'pair',      label: 'Pair / Simbol' },
             { id: 'strategy',  label: 'Strategi' },
-            { id: 'time',      label: 'Waktu / Sesi' },
-            { id: 'direction', label: 'Long vs Short' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -53,6 +50,28 @@ export default function AnalysisPage() {
               {tab.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* MFE & SQN Section (Level 3 - Detailed Analytics) */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between border-b border-border/60 pb-2">
+          <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <Brain className="h-4 w-4 text-purple-400" />
+            <span>Kualitas Sistem (SQN) &amp; Efisiensi Exit (MFE)</span>
+          </h2>
+          <span className="text-[11px] text-muted-foreground">Evaluasi Statistik Lengkap</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MfeCard
+            efficiencyPercent={74}
+            excludedCount={0}
+          />
+          <SqnCard
+            sqnScore={2.65}
+            sampleCount={28}
+          />
         </div>
       </div>
 
@@ -72,9 +91,8 @@ export default function AnalysisPage() {
         ))}
       </div>
 
-      {/* Main Grid: Equity Curve & Insights */}
+      {/* Equity Curve & Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Equity Curve Chart (2/3 width) */}
         <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
           <div className="border-b border-border pb-3 flex items-center justify-between">
             <div>
@@ -86,7 +104,7 @@ export default function AnalysisPage() {
             </span>
           </div>
 
-          <div className="h-72 flex flex-col justify-end p-4 bg-muted/10 border border-border/40 rounded-xl relative">
+          <div className="h-64 flex flex-col justify-end p-4 bg-muted/10 border border-border/40 rounded-xl relative">
             <div className="flex-1 flex items-end gap-2 pt-6">
               {[120, 180, 150, 240, 310, 280, 390, 450, 420, 560, 680, 750].map((val, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
@@ -103,7 +121,7 @@ export default function AnalysisPage() {
           </div>
         </div>
 
-        {/* Right: AI & Rule-Based Insights (1/3 width) */}
+        {/* AI & Rule-Based Insights */}
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
           <div className="border-b border-border pb-3 flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary animate-pulse" />
@@ -122,30 +140,18 @@ export default function AnalysisPage() {
                 text: 'Performa tradingmu 14% lebih baik dibanding minggu lalu.',
               },
               {
-                icon: CheckCircle2,
-                color: 'text-primary bg-primary/10 border-primary/30',
-                title: 'Pair Terbaik',
-                text: 'Pair EURUSD memberikan kontribusi profit terbesar (40% total PnL).',
-              },
-              {
                 icon: AlertTriangle,
                 color: 'text-amber-500 bg-amber-500/10 border-amber-500/30',
-                title: 'Evaluasi Sesi Waktu',
-                text: 'Win rate di sesi New York relatif lebih rendah (45%). Hindari overtrade di sesi ini.',
-              },
-              {
-                icon: CheckCircle2,
-                color: 'text-profit bg-profit/10 border-profit/30',
-                title: 'Manajemen Risiko',
-                text: 'Manajemen risiko sudah baik (R:R 1:2.1). Pertahankan kedisiplinan stop loss.',
+                title: 'Evaluasi Exit (MFE)',
+                text: 'Efisiensi exit kamu 74%. Ada ruang optimasi Take Profit.',
               },
             ].map((insight, idx) => {
               const Icon = insight.icon
               return (
-                <div key={idx} className={cn('p-3.5 rounded-xl border flex items-start gap-3', insight.color)}>
+                <div key={idx} className={cn('p-3 rounded-xl border flex items-start gap-3 text-xs', insight.color)}>
                   <Icon className="h-4 w-4 shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-xs font-bold text-foreground">{insight.title}</h4>
+                    <h4 className="font-bold text-foreground">{insight.title}</h4>
                     <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{insight.text}</p>
                   </div>
                 </div>
