@@ -316,6 +316,8 @@ export default function TradeDetailPage({
               <span className={cn('font-mono font-bold text-sm', color || 'text-foreground')}>{value}</span>
             </div>
           ))}
+        </div>
+
         {/* Automatic SL/TP R:R & Exit Type Analysis */}
         {(() => {
           const exitInfo = analyzeTradeExit(trade)
