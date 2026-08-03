@@ -5,25 +5,68 @@ import { hashToken } from '@/utils/token'
 // ── Zod schema for individual trade payload from EA ──────────
 const TradePayloadSchema = z.object({
   mt5_ticket_id:  z.coerce.number(),
-  symbol:         z.coerce.string().min(1).max(30),
-  direction:      z.preprocess((val) => String(val || 'buy').toLowerCase(), z.enum(['buy', 'sell'])),
-  volume:         z.coerce.number().optional().default(0.01),
-  open_price:     z.coerce.number().optional().default(0),
-  close_price:    z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : Number(val)), z.number().nullable().optional()),
-  open_time:      z.coerce.string().min(1),
-  close_time:     z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : String(val)), z.string().nullable().optional()),
-  sl:             z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : Number(val)), z.number().nullable().optional()),
-  tp:             z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : Number(val)), z.number().nullable().optional()),
-  pnl:            z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : Number(val)), z.number().nullable().optional()),
-  commission:     z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? 0 : Number(val)), z.number().optional().default(0)),
-  swap:           z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? 0 : Number(val)), z.number().optional().default(0)),
-  mfe_value:      z.preprocess((val) => (val === null || val === undefined || val === 'null' || val === '' ? null : Number(val)), z.number().nullable().optional()),
-  status:         z.preprocess((val) => String(val || 'closed').toLowerCase(), z.enum(['open', 'closed'])),
+  symbol:         z.preprocess((val) => String(val || 'UNKNOWN').trim(), z.string().min(1).max(100)),
+  direction:      z.preprocess((val) => {
+    const s = String(val || 'buy').toLowerCase()
+    return s.includes('sell') ? 'sell' : 'buy'
+  }, z.enum(['buy', 'sell'])),
+  volume:         z.preprocess((val) => {
+    const n = Number(val)
+    return isNaN(n) || n <= 0 ? 0.01 : n
+  }, z.number()),
+  open_price:     z.preprocess((val) => {
+    const n = Number(val)
+    return isNaN(n) ? 0 : n
+  }, z.number()),
+  close_price:    z.preprocess((val) => {
+    if (val === null || val === undefined || val === 'null' || val === '' || val === '0') return null
+    const n = Number(val)
+    return isNaN(n) ? null : n
+  }, z.number().nullable().optional()),
+  open_time:      z.preprocess((val) => String(val || new Date().toISOString()), z.string()),
+  close_time:     z.preprocess((val) => {
+    if (val === null || val === undefined || val === 'null' || val === '' || val === '0') return null
+    return String(val)
+  }, z.string().nullable().optional()),
+  sl:             z.preprocess((val) => {
+    if (val === null || val === undefined || val === 'null' || val === '' || val === '0') return null
+    const n = Number(val)
+    return isNaN(n) ? null : n
+  }, z.number().nullable().optional()),
+  tp:             z.preprocess((val) => {
+    if (val === null || val === undefined || val === 'null' || val === '' || val === '0') return null
+    const n = Number(val)
+    return isNaN(n) ? null : n
+  }, z.number().nullable().optional()),
+  pnl:            z.preprocess((val) => {
+    if (val === null || val === undefined || val === 'null' || val === '') return 0
+    const n = Number(val)
+    return isNaN(n) ? 0 : n
+  }, z.number().optional().default(0)),
+  commission:     z.preprocess((val) => {
+    if (val === null || val === undefined || val === 'null' || val === '') return 0
+    const n = Number(val)
+    return isNaN(n) ? 0 : n
+  }, z.number().optional().default(0)),
+  swap:           z.preprocess((val) => {
+    if (val === null || val === undefined || val === 'null' || val === '') return 0
+    const n = Number(val)
+    return isNaN(n) ? 0 : n
+  }, z.number().optional().default(0)),
+  mfe_value:      z.preprocess((val) => {
+    if (val === null || val === undefined || val === 'null' || val === '' || val === '0') return null
+    const n = Number(val)
+    return isNaN(n) ? null : n
+  }, z.number().nullable().optional()),
+  status:         z.preprocess((val) => {
+    const s = String(val || 'closed').toLowerCase()
+    return s.includes('open') ? 'open' : 'closed'
+  }, z.enum(['open', 'closed'])),
 })
 
 const SyncPayloadSchema = z.object({
   token:  z.string().min(1),
-  trades: z.array(TradePayloadSchema).max(500), // safety cap
+  trades: z.array(TradePayloadSchema).max(10000), // Cap increased to 10,000 for large account history
 })
 
 /**
@@ -145,10 +188,8 @@ export async function POST(request: NextRequest) {
       volume:            t.volume,
       open_price:        t.open_price,
       close_price:       t.close_price ?? null,
-      // Normalize MT5 datetime format "2026.08.02 10:48:51" → ISO 8601
       open_time:         normalizeMT5DateTime(t.open_time)!,
       close_time:        normalizeMT5DateTime(t.close_time ?? null),
-      // EA sends 0 when no SL/TP set — treat 0 as null
       sl:                (t.sl && t.sl !== 0) ? t.sl : null,
       tp:                (t.tp && t.tp !== 0) ? t.tp : null,
       pnl:               t.pnl ?? null,
@@ -158,23 +199,31 @@ export async function POST(request: NextRequest) {
       source:            'mt5_sync',
       mfe_value:         t.mfe_value ?? null,
       session:           detectSession(t.open_time),
-      // journal_status defaults to 'incomplete' — do NOT overwrite if already 'complete'
     }))
 
-    const { error: upsertErr, count } = await supabase
-      .from('trades')
-      .upsert(rows, {
-        onConflict:        'mt5_connection_id,mt5_ticket_id',
-        ignoreDuplicates:  false, // update existing rows (price/status may change for open trades)
-        count:             'exact',
-      })
+    // Upsert in chunks of 200 to prevent payload timeout for large trading histories
+    const CHUNK_SIZE = 200
+    let syncedCount = 0
 
-    if (upsertErr) {
-      console.error('[sync] upsert error:', upsertErr)
-      return NextResponse.json(
-        { error: 'DATABASE_ERROR', message: upsertErr.message },
-        { status: 500 }
-      )
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + CHUNK_SIZE)
+      const { error: upsertErr, count } = await supabase
+        .from('trades')
+        .upsert(chunk, {
+          onConflict:       'mt5_connection_id,mt5_ticket_id',
+          ignoreDuplicates: false,
+          count:            'exact',
+        })
+
+      if (upsertErr) {
+        console.error('[sync] batch upsert error:', upsertErr)
+        return NextResponse.json(
+          { error: 'DATABASE_ERROR', message: upsertErr.message },
+          { status: 500 }
+        )
+      }
+
+      syncedCount += count ?? chunk.length
     }
 
     // 5. Update last_synced_at & ensure status connected
@@ -189,8 +238,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success:      true,
-      synced_count: count ?? trades.length,
-      message:      `${count ?? trades.length} trade berhasil disinkronkan`,
+      synced_count: syncedCount,
+      message:      `${syncedCount} trade berhasil disinkronkan`,
     })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Internal server error'
