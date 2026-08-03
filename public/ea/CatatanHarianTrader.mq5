@@ -5,8 +5,8 @@
 //+------------------------------------------------------------------+
 #property copyright "Catatan Harian Trader"
 #property link      "https://www.chtrader.web.id"
-#property version   "2.21"
-#property description "EA Connector v2.21: Auto Sync MT5 Trade History + Fix Direction + SL/TP + MFE."
+#property version   "2.22"
+#property description "EA Connector v2.22: Auto Sync MT5 Trades + Balance + Fix Direction + SL/TP + MFE."
 
 //--- Inputs
 input string   InpApiToken        = "";               // API Token Unik (Salin dari Web Dashboard)
@@ -346,9 +346,10 @@ void SyncTradeHistory()
    }
 
    // ── 3. Send to /api/mt5/sync ──────────────────────────────
+   double currentBalance = AccountInfoDouble(ACCOUNT_BALANCE);
    string jsonBody = StringFormat(
-      "{\"token\":\"%s\",\"trades\":[%s]}",
-      InpApiToken, tradesJson
+      "{\"token\":\"%s\",\"balance\":%.2f,\"trades\":[%s]}",
+      InpApiToken, currentBalance, tradesJson
    );
 
    string endpoint = g_serverUrl + "/api/mt5/sync";

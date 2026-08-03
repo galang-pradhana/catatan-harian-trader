@@ -65,8 +65,13 @@ const TradePayloadSchema = z.object({
 })
 
 const SyncPayloadSchema = z.object({
-  token:  z.string().min(1),
-  trades: z.array(TradePayloadSchema).max(10000), // Cap increased to 10,000 for large account history
+  token:   z.string().min(1),
+  balance: z.preprocess((val) => {
+    if (val === undefined || val === null || val === '' || val === 'null') return undefined
+    const n = Number(val)
+    return isNaN(n) ? undefined : n
+  }, z.number().optional()),
+  trades:  z.array(TradePayloadSchema).max(10000), // Cap increased to 10,000 for large account history
 })
 
 /**
@@ -121,7 +126,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { token, trades } = parsed.data
+    const { token, balance, trades } = parsed.data
     const tokenHash = hashToken(token)
 
     // 2. Check Supabase
@@ -226,15 +231,72 @@ export async function POST(request: NextRequest) {
       syncedCount += count ?? chunk.length
     }
 
-    // 5. Update last_synced_at & ensure status connected
-    await supabase
-      .from('mt5_connections')
-      .update({
-        last_synced_at: new Date().toISOString(),
-        status:         'connected',
-        last_error:     null,
-      })
-      .eq('id', connection.id)
+    // 5. Update last_synced_at & balance, and execute compounding level auto-check
+    if (balance !== undefined && !isNaN(balance)) {
+      await supabase
+        .from('mt5_connections')
+        .update({
+          last_synced_at: new Date().toISOString(),
+          status: 'connected',
+          last_error: null,
+          current_balance: balance,
+          balance_updated_at: new Date().toISOString(),
+        })
+        .eq('id', connection.id)
+
+      // Auto-check Compounding Levels & Goals
+      try {
+        const { data: plans } = await supabase
+          .from('compounding_plans')
+          .select('id, goal_level_target')
+          .eq('mt5_connection_id', connection.id)
+          .eq('status', 'active')
+
+        if (plans && plans.length > 0) {
+          for (const plan of plans) {
+            const { data: achievedLevels } = await supabase
+              .from('compounding_levels')
+              .select('id, level_number')
+              .eq('plan_id', plan.id)
+              .lte('asset_plan', balance)
+              .eq('is_achieved', false)
+
+            if (achievedLevels && achievedLevels.length > 0) {
+              const now = new Date().toISOString()
+              const idsToUpdate = achievedLevels.map((l) => l.id)
+
+              await supabase
+                .from('compounding_levels')
+                .update({ is_achieved: true, achieved_at: now })
+                .in('id', idsToUpdate)
+
+              const maxAchievedLevel = Math.max(...achievedLevels.map((l) => l.level_number))
+              const targetGoalLvl = plan.goal_level_target || 100
+              const progressPct = Math.min(100, parseFloat(((maxAchievedLevel / targetGoalLvl) * 100).toFixed(2)))
+
+              await supabase
+                .from('goals')
+                .update({
+                  current_progress: progressPct,
+                  status: progressPct >= 100 ? 'achieved' : 'active'
+                })
+                .eq('source_plan_id', plan.id)
+            }
+          }
+        }
+      } catch (compoundingErr) {
+        console.error('[sync] compounding auto-check error:', compoundingErr)
+      }
+    } else {
+      await supabase
+        .from('mt5_connections')
+        .update({
+          last_synced_at: new Date().toISOString(),
+          status: 'connected',
+          last_error: null,
+        })
+        .eq('id', connection.id)
+    }
 
     return NextResponse.json({
       success:      true,
