@@ -5,8 +5,8 @@
 //+------------------------------------------------------------------+
 #property copyright "Catatan Harian Trader"
 #property link      "https://www.chtrader.web.id"
-#property version   "2.20"
-#property description "EA Connector v2.2: Auto Sync MT5 Trade History + SL/TP + MFE Exit Efficiency."
+#property version   "2.21"
+#property description "EA Connector v2.21: Auto Sync MT5 Trade History + Fix Direction + SL/TP + MFE."
 
 //--- Inputs
 input string   InpApiToken        = "";               // API Token Unik (Salin dari Web Dashboard)
@@ -24,7 +24,7 @@ string   g_serverUrl    = "";
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("[CatatanHarianTrader] v2.2 Memulai EA Connector + History SL/TP + MFE...");
+   Print("[CatatanHarianTrader] v2.21 Memulai EA Connector + Fix Direction + SL/TP...");
 
    // Clean trailing slash from URL
    g_serverUrl = InpServerUrl;
@@ -204,9 +204,20 @@ void SyncTradeHistory()
       if(openPrice <= 0) openPrice = price;
       if(openTime <= 0)  openTime  = closeTime;
 
-      // MT5 DEAL_TYPE_BUY = closing deal for a BUY position (direction = buy)
-      // MT5 DEAL_TYPE_SELL = closing deal for a SELL position (direction = sell)
-      string direction = (dealType == DEAL_TYPE_SELL) ? "sell" : "buy";
+      // Determine position direction from ENTRY deal (DEAL_ENTRY_IN)
+      // Note: In MT5, a BUY position is closed with a SELL deal, and a SELL position is closed with a BUY deal.
+      string direction = "buy";
+      if(entryTicket > 0)
+      {
+         int entryDealType = (int)HistoryDealGetInteger(entryTicket, DEAL_TYPE);
+         direction = (entryDealType == DEAL_TYPE_BUY) ? "buy" : "sell";
+      }
+      else
+      {
+         // Fallback if entry deal is outside HistorySelect: closing deal SELL means position was BUY
+         direction = (dealType == DEAL_TYPE_SELL) ? "buy" : "sell";
+      }
+
       double mfePeak = CalculateMFEPeak(symbol, direction, openTime, closeTime);
 
       // Format datetime as ISO 8601 using MqlDateTime struct (MQL5 way)

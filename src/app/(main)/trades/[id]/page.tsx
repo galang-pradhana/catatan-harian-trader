@@ -314,8 +314,8 @@ export default function TradeDetailPage({
           {[
             { label: 'Harga Entry',       value: trade.open_price,  color: '' },
             { label: 'Harga Exit',        value: trade.close_price ?? 'Belum Exit', color: '' },
-            { label: 'Stop Loss (SL)',     value: trade.sl ?? 'N/A', color: 'text-loss' },
-            { label: 'Take Profit (TP)',   value: trade.tp ?? 'N/A', color: 'text-profit' },
+            { label: 'Stop Loss (SL)',     value: editSl || trade.sl || 'N/A', color: 'text-loss' },
+            { label: 'Take Profit (TP)',   value: editTp || trade.tp || 'N/A', color: 'text-profit' },
           ].map(({ label, value, color }) => (
             <div key={label} className="bg-muted/30 border border-border/50 rounded-xl p-3">
               <span className="text-muted-foreground block">{label}</span>
@@ -326,7 +326,17 @@ export default function TradeDetailPage({
 
         {/* Automatic SL/TP R:R & Exit Type Analysis */}
         {(() => {
-          const exitInfo = analyzeTradeExit(trade)
+          const currentSl = editSl !== '' ? Number(editSl) : trade.sl
+          const currentTp = editTp !== '' ? Number(editTp) : trade.tp
+          const exitInfo = analyzeTradeExit({
+            direction: trade.direction,
+            open_price: trade.open_price,
+            close_price: trade.close_price,
+            sl: currentSl,
+            tp: currentTp,
+            pnl: trade.pnl,
+            status: trade.status,
+          })
           return (
             <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2.5">
@@ -340,14 +350,14 @@ export default function TradeDetailPage({
                 <div className="bg-card border border-border/50 rounded-lg p-2.5 space-y-0.5">
                   <span className="text-muted-foreground block text-[11px]">Rencana R:R (Planned)</span>
                   <span className="font-mono font-extrabold text-primary text-base">{exitInfo.plannedRR}</span>
-                  <span className="text-[10px] text-muted-foreground block">Berdasarkan SL &amp; TP awal MT5</span>
+                  <span className="text-[10px] text-muted-foreground block">Berdasarkan SL &amp; TP</span>
                 </div>
                 <div className="bg-card border border-border/50 rounded-lg p-2.5 space-y-0.5">
                   <span className="text-muted-foreground block text-[11px]">Realisasi R:R (Actual)</span>
                   <span className={cn('font-mono font-extrabold text-base', isProfit ? 'text-profit' : 'text-loss')}>
                     {exitInfo.actualRR}
                   </span>
-                  <span className="text-[10px] text-muted-foreground block">Berdasarkan harga close MT5</span>
+                  <span className="text-[10px] text-muted-foreground block">Berdasarkan harga close</span>
                 </div>
               </div>
             </div>
@@ -515,14 +525,39 @@ export default function TradeDetailPage({
             )}
           </div>
 
-          {/* Risk, RR, Grade */}
+          {/* Risk %, Auto R:R, Self Grade */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Input label="Risk (%)" type="number" step="0.1" placeholder="1.0"
               value={riskPercent ?? ''} onChange={(e) => setRiskPercent(parseFloat(e.target.value) || undefined)} />
-            <Input label="Planned R:R" type="number" step="0.1" placeholder="2.0"
-              value={plannedRR ?? ''} onChange={(e) => setPlannedRR(parseFloat(e.target.value) || undefined)} />
-            <Input label="Actual R:R" type="number" step="0.1" placeholder="1.8"
-              value={actualRR ?? ''} onChange={(e) => setActualRR(parseFloat(e.target.value) || undefined)} />
+
+            <div className="bg-muted/20 border border-border/60 rounded-xl p-2.5 space-y-0.5">
+              <span className="text-[11px] font-semibold text-foreground uppercase tracking-wider block">Planned R:R</span>
+              <span className="font-mono font-extrabold text-primary text-sm block">
+                {(() => {
+                  const currentSl = editSl !== '' ? Number(editSl) : trade.sl
+                  const currentTp = editTp !== '' ? Number(editTp) : trade.tp
+                  return analyzeTradeExit({
+                    direction: trade.direction, open_price: trade.open_price, close_price: trade.close_price, sl: currentSl, tp: currentTp, pnl: trade.pnl, status: trade.status
+                  }).plannedRR
+                })()}
+              </span>
+              <span className="text-[9px] text-muted-foreground block">Auto dari SL &amp; TP</span>
+            </div>
+
+            <div className="bg-muted/20 border border-border/60 rounded-xl p-2.5 space-y-0.5">
+              <span className="text-[11px] font-semibold text-foreground uppercase tracking-wider block">Actual R:R</span>
+              <span className={cn('font-mono font-extrabold text-sm block', isProfit ? 'text-profit' : 'text-loss')}>
+                {(() => {
+                  const currentSl = editSl !== '' ? Number(editSl) : trade.sl
+                  const currentTp = editTp !== '' ? Number(editTp) : trade.tp
+                  return analyzeTradeExit({
+                    direction: trade.direction, open_price: trade.open_price, close_price: trade.close_price, sl: currentSl, tp: currentTp, pnl: trade.pnl, status: trade.status
+                  }).actualRR
+                })()}
+              </span>
+              <span className="text-[9px] text-muted-foreground block">Auto dari Harga Exit</span>
+            </div>
+
             <div>
               <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Self Grade</label>
               <select

@@ -33,10 +33,10 @@ export function analyzeTradeExit(trade: {
   let plannedRR = '-'
 
   if (openPrice > 0 && sl) {
-    plannedRisk = isBuy ? openPrice - sl : sl - openPrice
+    plannedRisk = Math.abs(openPrice - sl)
   }
   if (openPrice > 0 && tp) {
-    plannedReward = isBuy ? tp - openPrice : openPrice - tp
+    plannedReward = Math.abs(tp - openPrice)
   }
 
   if (plannedRisk > 0 && plannedReward > 0) {
