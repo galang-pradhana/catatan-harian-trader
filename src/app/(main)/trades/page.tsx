@@ -52,6 +52,7 @@ interface ApiTrade {
   status: 'open' | 'closed'
   session: string | null
   journal_status: 'incomplete' | 'complete'
+  trade_journal?: { mood?: string; discipline?: 'yes' | 'no' } | null
 }
 
 function mapApiTrade(t: ApiTrade): Trade {
@@ -73,6 +74,8 @@ function mapApiTrade(t: ApiTrade): Trade {
     status:        t.status,
     session:       (t.session as Trade['session']) ?? undefined,
     journalStatus: t.journal_status,
+    mood:          (t.trade_journal?.mood as Trade['mood']) ?? undefined,
+    discipline:    (t.trade_journal?.discipline as Trade['discipline']) ?? undefined,
   }
 }
 

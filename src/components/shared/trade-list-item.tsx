@@ -2,13 +2,21 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, ArrowDownRight, CheckCircle2, AlertCircle } from 'lucide-react'
+import { ArrowUpRight, ArrowDownRight, CheckCircle2, AlertCircle, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Trade } from '@/types/trade'
 import { analyzeTradeExit } from '@/utils/trade-metrics'
 import { cn } from '@/lib/utils'
 
 export interface TradeListItemProps {
   trade: Trade
+}
+
+const moodEmojis: Record<string, { label: string; emoji: string }> = {
+  confident: { label: 'Confident', emoji: '😊' },
+  neutral:   { label: 'Neutral',   emoji: '😐' },
+  fomo:      { label: 'FOMO',      emoji: '😤' },
+  anxious:   { label: 'Cemas',     emoji: '😰' },
+  greedy:    { label: 'Serakah',   emoji: '🤑' },
 }
 
 export function TradeListItem({ trade }: TradeListItemProps) {
@@ -32,6 +40,8 @@ export function TradeListItem({ trade }: TradeListItemProps) {
     status: trade.status,
   })
 
+  const moodObj = trade.mood ? moodEmojis[trade.mood] : null
+
   return (
     <Link
       href={`/trades/${trade.id}`}
@@ -47,7 +57,7 @@ export function TradeListItem({ trade }: TradeListItemProps) {
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        {/* Left: Symbol & Direction */}
+        {/* Left: Symbol, Direction, & Discipline/Mood Badges */}
         <div className="flex items-center gap-3">
           <div
             className={cn(
@@ -92,6 +102,25 @@ export function TradeListItem({ trade }: TradeListItemProps) {
               <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full border', exitInfo.exitBadgeColor)}>
                 {exitInfo.exitTypeLabel}
               </span>
+
+              {/* Discipline Badge (Requirement 4) */}
+              {trade.discipline === 'no' && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-destructive/15 text-destructive border border-destructive/30">
+                  <ShieldAlert className="h-3 w-3" /> Melanggar Rules
+                </span>
+              )}
+              {trade.discipline === 'yes' && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  <ShieldCheck className="h-3 w-3" /> Ikut Rules
+                </span>
+              )}
+
+              {/* Mood Badge (Requirement 4) */}
+              {moodObj && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                  {moodObj.emoji} {moodObj.label}
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               {new Date(trade.openTime).toLocaleDateString('id-ID', {

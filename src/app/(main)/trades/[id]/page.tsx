@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, use } from 'react'
+import React, { useState, use, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -17,7 +17,17 @@ import {
   Loader2,
   RefreshCw,
   Check,
-  Trash2,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck,
+  ShieldAlert,
+  Brain,
+  BarChart3,
+  FileText,
+  Sparkles,
+  X,
+  Target
 } from 'lucide-react'
 import { Trade, SelfGrade, MoodType } from '@/types/trade'
 import { analyzeTradeExit } from '@/utils/trade-metrics'
@@ -76,7 +86,36 @@ async function uploadScreenshot(tradeId: string, file: File, type: 'entry' | 'ex
   return res.json()
 }
 
-// ── Main Component ────────────────────────────────────────────
+async function createStrategyApi(name: string) {
+  const res = await fetch('/api/strategies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, color: '#D4A94C' })
+  })
+  if (!res.ok) throw new Error('Gagal menambah strategi')
+  const json = await res.json()
+  return json.strategy
+}
+
+async function createMistakeTagApi(name: string) {
+  const res = await fetch('/api/mistake-tags', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, color: '#EF4444' })
+  })
+  if (!res.ok) throw new Error('Gagal menambah tag kesalahan')
+  const json = await res.json()
+  return json.mistake_tag
+}
+
+const moodOptions: Array<{ type: MoodType; label: string; emoji: string }> = [
+  { type: 'confident', label: 'Percaya Diri', emoji: '😊' },
+  { type: 'neutral',   label: 'Netral',       emoji: '😐' },
+  { type: 'fomo',      label: 'FOMO',         emoji: '😤' },
+  { type: 'anxious',   label: 'Cemas',        emoji: '😰' },
+  { type: 'greedy',    label: 'Serakah',      emoji: '🤑' },
+]
+
 export default function TradeDetailPage({
   params,
 }: {
@@ -86,43 +125,54 @@ export default function TradeDetailPage({
   const router = useRouter()
   const queryClient = useQueryClient()
 
-  // Fetch trade detail
+  // Collapsible Section States
+  const [section1Open, setSection1Open] = useState(true)
+  const [section2Open, setSection2Open] = useState(true)
+  const [section3Open, setSection3Open] = useState(true)
+
+  // Inline Modal States
+  const [isAddStrategyOpen, setIsAddStrategyOpen]   = useState(false)
+  const [newStrategyName,   setNewStrategyName]     = useState('')
+  const [isAddTagOpen,      setIsAddTagOpen]        = useState(false)
+  const [newTagName,        setNewTagName]          = useState('')
+
+  // Fetch trade detail & metadata
   const { data: trade, isLoading, isError, refetch } = useQuery({
     queryKey: ['trade', id],
     queryFn:  () => fetchTradeDetail(id),
     staleTime: 30_000,
   })
 
-  // Fetch strategies & mistake tags
-  const { data: strategies = [] } = useQuery({
+  const { data: strategies = [], refetch: refetchStrats } = useQuery({
     queryKey: ['strategies'],
     queryFn:  fetchStrategies,
     staleTime: 60_000,
   })
 
-  const { data: mistakeTags = [] } = useQuery({
+  const { data: mistakeTags = [], refetch: refetchTags } = useQuery({
     queryKey: ['mistake-tags'],
     queryFn:  fetchMistakeTags,
     staleTime: 60_000,
   })
 
-  // Form state (initialized from API data)
-  const [reasonEntry,        setReasonEntry]       = useState('')
-  const [mood,               setMood]              = useState<MoodType | undefined>()
-  const [discipline,         setDiscipline]        = useState<'yes' | 'no' | undefined>()
-  const [lessonLearned,      setLessonLearned]     = useState('')
-  const [riskPercent,        setRiskPercent]       = useState<number | undefined>()
-  const [plannedRR,          setPlannedRR]         = useState<number | undefined>()
-  const [actualRR,           setActualRR]          = useState<number | undefined>()
-  const [selfGrade,          setSelfGrade]         = useState<SelfGrade | undefined>()
-  const [selectedStrategies, setSelectedStrategies] = useState<string[]>([])
-  const [selectedMistakes,   setSelectedMistakes]   = useState<string[]>([])
-  const [editSl,             setEditSl]            = useState<string>('')
-  const [editTp,             setEditTp]            = useState<string>('')
-  const [formInitialized,    setFormInitialized]   = useState(false)
-  const [uploadType,         setUploadType]        = useState<'entry' | 'exit'>('entry')
+  // Form State
+  const [reasonEntry,        setReasonEntry]        = useState('')
+  const [mood,               setMood]               = useState<MoodType | undefined>()
+  const [discipline,         setDiscipline]         = useState<'yes' | 'no' | undefined>()
+  const [lessonLearned,      setLessonLearned]      = useState('')
+  const [riskPercent,        setRiskPercent]        = useState<number | undefined>()
+  const [plannedRR,          setPlannedRR]          = useState<number | undefined>()
+  const [actualRR,           setActualRR]           = useState<number | undefined>()
+  const [selfGrade,          setSelfGrade]          = useState<SelfGrade | undefined>()
+  const [selectedStrategies, setSelectedStrategies]  = useState<string[]>([])
+  const [selectedMistakes,   setSelectedMistakes]    = useState<string[]>([])
+  const [editSl,             setEditSl]             = useState<string>('')
+  const [editTp,             setEditTp]             = useState<string>('')
+  const [formInitialized,    setFormInitialized]    = useState(false)
+  const [uploadType,         setUploadType]         = useState<'entry' | 'exit'>('entry')
+  const [lastSavedTime,      setLastSavedTime]      = useState<string | null>(null)
 
-  // Initialize form from loaded trade data (only once)
+  // Initialize Form
   React.useEffect(() => {
     if (trade && !formInitialized) {
       setEditSl(trade.sl ? String(trade.sl) : '')
@@ -137,6 +187,9 @@ export default function TradeDetailPage({
         setPlannedRR(j.planned_rr)
         setActualRR(j.actual_rr)
         setSelfGrade(j.self_grade)
+        if (j.updated_at) {
+          setLastSavedTime(new Date(j.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+        }
       }
       setSelectedStrategies((trade.strategies ?? []).map((s: {id: string}) => s.id))
       setSelectedMistakes((trade.mistakes ?? []).map((m: {id: string}) => m.id))
@@ -144,10 +197,12 @@ export default function TradeDetailPage({
     }
   }, [trade, formInitialized])
 
-  // Save journal mutation
+  // Save Mutation
   const saveMutation = useMutation({
     mutationFn: (payload: Record<string, unknown>) => saveJournal(id, payload),
     onSuccess: () => {
+      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      setLastSavedTime(nowStr)
       toast('Jurnal trade berhasil disimpan!', 'success')
       queryClient.invalidateQueries({ queryKey: ['trade', id] })
       queryClient.invalidateQueries({ queryKey: ['trades'] })
@@ -158,7 +213,7 @@ export default function TradeDetailPage({
     },
   })
 
-  // Upload screenshot mutation
+  // Upload Screenshot Mutation
   const uploadMutation = useMutation({
     mutationFn: ({ file, type }: { file: File; type: 'entry' | 'exit' }) =>
       uploadScreenshot(id, file, type),
@@ -171,6 +226,47 @@ export default function TradeDetailPage({
     },
   })
 
+  // Add Strategy Mutation
+  const addStrategyMutation = useMutation({
+    mutationFn: (name: string) => createStrategyApi(name),
+    onSuccess: (newStrat) => {
+      toast(`Strategi "${newStrat.name}" ditambahkan!`, 'success')
+      refetchStrats()
+      setSelectedStrategies((prev) => [...prev, newStrat.id])
+      setNewStrategyName('')
+      setIsAddStrategyOpen(false)
+    },
+  })
+
+  // Add Mistake Tag Mutation
+  const addTagMutation = useMutation({
+    mutationFn: (name: string) => createMistakeTagApi(name),
+    onSuccess: (newTag) => {
+      toast(`Tag kesalahan "${newTag.name}" ditambahkan!`, 'success')
+      refetchTags()
+      setSelectedMistakes((prev) => [...prev, newTag.id])
+      setNewTagName('')
+      setIsAddTagOpen(false)
+    },
+  })
+
+  // Calculate Completeness Progress (Requirement 2)
+  const completeness = useMemo(() => {
+    let filled = 0
+    const totalFields = 8
+    if (editSl) filled++
+    if (editTp) filled++
+    if (reasonEntry) filled++
+    if (mood) filled++
+    if (discipline) filled++
+    if (selectedStrategies.length > 0) filled++
+    if (lessonLearned) filled++
+    if (selfGrade) filled++
+
+    const percentage = Math.round((filled / totalFields) * 100)
+    return { filled, totalFields, percentage }
+  }, [editSl, editTp, reasonEntry, mood, discipline, selectedStrategies, lessonLearned, selfGrade])
+
   const toggleStrategy = (sid: string) =>
     setSelectedStrategies((prev) =>
       prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid]
@@ -181,19 +277,19 @@ export default function TradeDetailPage({
       prev.includes(mid) ? prev.filter((x) => x !== mid) : [...prev, mid]
     )
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (type: 'entry' | 'exit', e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 5 * 1024 * 1024) {
       toast('Ukuran file maksimal 5MB!', 'error')
       return
     }
-    uploadMutation.mutate({ file, type: uploadType })
+    uploadMutation.mutate({ file, type })
     e.target.value = ''
   }
 
-  const handleSaveJournal = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSaveJournal = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
     saveMutation.mutate({
       sl:              editSl ? Number(editSl) : null,
       tp:              editTp ? Number(editTp) : null,
@@ -210,7 +306,6 @@ export default function TradeDetailPage({
     })
   }
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -220,19 +315,13 @@ export default function TradeDetailPage({
     )
   }
 
-  // Error state
   if (isError || !trade) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <p className="text-sm text-destructive">Trade tidak ditemukan atau terjadi kesalahan</p>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-1.5" /> Coba Lagi
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => router.push('/trades')}>
-            <ArrowLeft className="h-4 w-4 mr-1.5" /> Kembali
-          </Button>
-        </div>
+        <p className="text-sm text-destructive">Trade tidak ditemukan</p>
+        <Button variant="outline" size="sm" onClick={() => router.push('/trades')}>
+          <ArrowLeft className="h-4 w-4 mr-1.5" /> Kembali
+        </Button>
       </div>
     )
   }
@@ -240,449 +329,615 @@ export default function TradeDetailPage({
   const isBuy     = trade.direction === 'buy'
   const isProfit  = (trade.pnl || 0) >= 0
   const screenshots = trade.screenshots ?? []
-  const journalStatus = trade.journal_status
+  const entryScreenshot = screenshots.find((s: any) => s.type === 'entry')
+  const exitScreenshot  = screenshots.find((s: any) => s.type === 'exit')
+
+  const exitInfo = analyzeTradeExit({
+    direction: trade.direction,
+    open_price: trade.openPrice,
+    close_price: trade.closePrice ?? null,
+    sl: editSl ? Number(editSl) : trade.sl ?? null,
+    tp: editTp ? Number(editTp) : trade.tp ?? null,
+    pnl: trade.pnl ?? null,
+    status: trade.status,
+  })
+
+  // Horizontal Gauge level percentage math for SL - Entry - TP
+  const openP = trade.openPrice
+  const closeP = trade.closePrice ?? openP
+  const slP = editSl ? Number(editSl) : trade.sl
+  const tpP = editTp ? Number(editTp) : trade.tp
+
+  let actualMarkerPct = 50
+  if (slP && tpP && slP !== tpP) {
+    actualMarkerPct = Math.min(100, Math.max(0, ((closeP - slP) / (tpP - slP)) * 100))
+  }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12">
-      {/* Top Nav */}
-      <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
-        <Link
-          href="/trades"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" /> Kembali ke Riwayat Trade
-        </Link>
-        <span
-          className={cn(
-            'inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border',
-            journalStatus === 'complete'
-              ? 'bg-profit/10 text-profit border-profit/30'
-              : 'bg-amber-500/10 text-amber-500 border-amber-500/30'
-          )}
-        >
-          {journalStatus === 'complete' ? (
-            <><CheckCircle2 className="h-3.5 w-3.5" /> Jurnal Lengkap</>
-          ) : (
-            <><AlertCircle className="h-3.5 w-3.5" /> Belum Dilengkapi</>
-          )}
-        </span>
-      </div>
-
-      {/* SECTION 1: Read-Only MT5 Trade Data */}
-      <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-md space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+    <div className="space-y-6 max-w-4xl mx-auto pb-28 relative">
+      {/* 📌 TOP STICKY PROGRESS & AUTOSAVE BAR (Requirement 2) */}
+      <div className="sticky top-0 z-30 bg-card/90 border-b border-border/80 p-3.5 shadow-md backdrop-blur-md -mx-4 px-4 sm:-mx-6 sm:px-6 rounded-b-2xl space-y-2">
+        <div className="flex items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3">
-            <div
-              className={cn(
-                'h-12 w-12 rounded-2xl flex items-center justify-center shrink-0',
-                isBuy
-                  ? 'bg-profit/15 text-profit border border-profit/30'
-                  : 'bg-loss/15 text-loss border border-loss/30'
-              )}
+            <Link
+              href="/trades"
+              className="inline-flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground transition-colors"
             >
-              {isBuy ? <ArrowUpRight className="h-6 w-6" /> : <ArrowDownRight className="h-6 w-6" />}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-extrabold text-foreground tracking-tight">{trade.symbol}</h2>
-                <span className={cn('text-xs font-bold uppercase px-2 py-0.5 rounded', isBuy ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss')}>
-                  {trade.direction}
-                </span>
-                <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
-                  {trade.volume} Lot
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Ticket: #{trade.mt5_ticket_id} • Sesi:{' '}
-                <span className="text-foreground capitalize font-medium">{trade.session || 'N/A'}</span>
-              </p>
-            </div>
-          </div>
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
 
-          <div className="sm:text-right">
-            <span className="text-xs text-muted-foreground block">Profit / Loss (PnL)</span>
-            <span className={cn('text-2xl font-mono font-bold tracking-tight', isProfit ? 'text-profit' : 'text-loss')}>
-              {trade.pnl !== null && trade.pnl !== undefined
-                ? `${isProfit ? '+' : ''}$${Number(trade.pnl).toFixed(2)}`
-                : 'Open'}
+            <span className="font-extrabold text-foreground">
+              Jurnal #{trade.mt5_ticket_id} ({trade.symbol})
+            </span>
+
+            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+              {completeness.filled}/{completeness.totalFields} Terisi ({completeness.percentage}%)
             </span>
           </div>
+
+          <div className="flex items-center gap-2">
+            {lastSavedTime && (
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium hidden sm:inline-flex">
+                <Check className="h-3 w-3 text-emerald-400" /> Tersimpan otomatis jam {lastSavedTime}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Price Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          {[
-            { label: 'Harga Entry',       value: trade.open_price,  color: '' },
-            { label: 'Harga Exit',        value: trade.close_price ?? 'Belum Exit', color: '' },
-            { label: 'Stop Loss (SL)',     value: editSl || trade.sl || 'N/A', color: 'text-loss' },
-            { label: 'Take Profit (TP)',   value: editTp || trade.tp || 'N/A', color: 'text-profit' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="bg-muted/30 border border-border/50 rounded-xl p-3">
-              <span className="text-muted-foreground block">{label}</span>
-              <span className={cn('font-mono font-bold text-sm', color || 'text-foreground')}>{value}</span>
+        {/* Progress bar line */}
+        <div className="w-full h-1.5 rounded-full bg-muted/40 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 rounded-full transition-all duration-300"
+            style={{ width: `${completeness.percentage}%` }}
+          />
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 1️⃣ SECTION 1: DATA TRADE (MT5 Core Metrics) */}
+      {/* ========================================================================= */}
+      <div className="bg-card/70 border border-border/80 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4 backdrop-blur-sm">
+        <div
+          onClick={() => setSection1Open(!section1Open)}
+          className="flex items-center justify-between border-b border-border/60 pb-3 cursor-pointer select-none"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-muted text-foreground">
+              <BarChart3 className="h-5 w-5 text-amber-500" />
             </div>
-          ))}
+            <div>
+              <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                1. Data Perdagangan (MT5 Executed Trade)
+              </h2>
+              <p className="text-xs text-muted-foreground">Harga entry, exit, volume, ticket &amp; PnL terkunci dari MT5</p>
+            </div>
+          </div>
+          <button type="button" className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
+            {section1Open ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </button>
         </div>
 
-        {/* Automatic SL/TP R:R & Exit Type Analysis */}
-        {(() => {
-          const currentSl = editSl !== '' ? Number(editSl) : trade.sl
-          const currentTp = editTp !== '' ? Number(editTp) : trade.tp
-          const exitInfo = analyzeTradeExit({
-            direction: trade.direction,
-            open_price: trade.open_price,
-            close_price: trade.close_price,
-            sl: currentSl,
-            tp: currentTp,
-            pnl: trade.pnl,
-            status: trade.status,
-          })
-          return (
-            <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2.5">
-                <span className="text-xs font-bold text-foreground">Analisis SL/TP &amp; Eksekusi Exit</span>
-                <span className={cn('text-xs font-bold px-3 py-1 rounded-full border', exitInfo.exitBadgeColor)}>
+        {section1Open && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Header Symbol & PnL */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-muted/20 border border-border/60">
+              <div className="flex items-center gap-3">
+                <div
+                  className={cn(
+                    'h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 font-bold',
+                    isBuy
+                      ? 'bg-profit/15 text-profit border border-profit/30'
+                      : 'bg-loss/15 text-loss border border-loss/30'
+                  )}
+                >
+                  {isBuy ? <ArrowUpRight className="h-6 w-6" /> : <ArrowDownRight className="h-6 w-6" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xl font-extrabold text-foreground tracking-tight">{trade.symbol}</h3>
+                    <span className={cn('text-xs font-bold uppercase px-2 py-0.5 rounded', isBuy ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss')}>
+                      {trade.direction}
+                    </span>
+                    <span className="text-xs font-mono text-muted-foreground bg-card px-2 py-0.5 rounded border border-border">
+                      {trade.volume} Lot
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Ticket: #{trade.mt5_ticket_id} • Sesi: <span className="text-foreground capitalize font-medium">{trade.session || 'N/A'}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-left sm:text-right">
+                <span className="text-[11px] text-muted-foreground block font-semibold uppercase tracking-wider">Hasil PnL</span>
+                <span className={`text-2xl font-extrabold font-mono ${trade.status === 'open' ? 'text-primary' : isProfit ? 'text-emerald-400' : 'text-destructive'}`}>
+                  {trade.pnl !== undefined ? `${isProfit ? '+' : ''}$${trade.pnl.toFixed(2)}` : 'Running'}
+                </span>
+              </div>
+            </div>
+
+            {/* Price Grid (Open - Close - SL - TP) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-card border border-border rounded-2xl p-3.5 space-y-1">
+                <span className="text-[10px] font-bold uppercase text-muted-foreground block">Harga Entry</span>
+                <span className="font-mono font-bold text-sm text-foreground">{trade.openPrice}</span>
+                <span className="text-[9px] text-muted-foreground block">{new Date(trade.openTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+
+              <div className="bg-card border border-border rounded-2xl p-3.5 space-y-1">
+                <span className="text-[10px] font-bold uppercase text-muted-foreground block">Harga Exit</span>
+                <span className="font-mono font-bold text-sm text-foreground">{trade.closePrice ?? '-'}</span>
+                <span className="text-[9px] text-muted-foreground block">{trade.closeTime ? new Date(trade.closeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Running'}</span>
+              </div>
+
+              <div className="bg-card border border-border rounded-2xl p-3.5 space-y-1">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground block">Stop Loss (SL)</label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={editSl}
+                  onChange={(e) => setEditSl(e.target.value)}
+                  placeholder="Contoh: 1.0850"
+                  className="font-mono text-xs h-8 bg-background border-border"
+                />
+              </div>
+
+              <div className="bg-card border border-border rounded-2xl p-3.5 space-y-1">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground block">Take Profit (TP)</label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={editTp}
+                  onChange={(e) => setEditTp(e.target.value)}
+                  placeholder="Contoh: 1.0950"
+                  className="font-mono text-xs h-8 bg-background border-border"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2️⃣ SECTION 2: ANALISIS SL/TP & R:R GAUGE (Requirement 3) */}
+      {/* ========================================================================= */}
+      <div className="bg-gradient-to-br from-card via-card to-amber-500/10 border border-amber-500/30 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+        <div
+          onClick={() => setSection2Open(!section2Open)}
+          className="flex items-center justify-between border-b border-border/60 pb-3 cursor-pointer select-none"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                2. Analisis Risk:Reward (Planned vs Actual R:R)
+              </h2>
+              <p className="text-xs text-muted-foreground">Gauge visual posisi harga close terhadap area SL, Entry &amp; TP</p>
+            </div>
+          </div>
+          <button type="button" className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
+            {section2Open ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </button>
+        </div>
+
+        {section2Open && (
+          <div className="space-y-5 animate-in fade-in duration-200">
+            {/* Planned vs Actual R:R Badges */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-card border border-border space-y-1">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">Planned R:R</span>
+                <span className="font-mono font-extrabold text-base text-amber-400">
+                  {exitInfo.plannedRR !== '-' ? `1:${exitInfo.plannedRR}` : 'Belum diisi'}
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-card border border-border space-y-1">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">Eksekusi Exit</span>
+                <span className={cn('font-bold text-xs px-2.5 py-1 rounded-full border inline-block mt-0.5', exitInfo.exitBadgeColor)}>
                   {exitInfo.exitTypeLabel}
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-card border border-border/50 rounded-lg p-2.5 space-y-0.5">
-                  <span className="text-muted-foreground block text-[11px]">Rencana R:R (Planned)</span>
-                  <span className="font-mono font-extrabold text-primary text-base">{exitInfo.plannedRR}</span>
-                  <span className="text-[10px] text-muted-foreground block">Berdasarkan SL &amp; TP</span>
-                </div>
-                <div className="bg-card border border-border/50 rounded-lg p-2.5 space-y-0.5">
-                  <span className="text-muted-foreground block text-[11px]">Realisasi R:R (Actual)</span>
-                  <span className={cn('font-mono font-extrabold text-base', isProfit ? 'text-profit' : 'text-loss')}>
-                    {exitInfo.actualRR}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground block">Berdasarkan harga close</span>
+              <div className="p-3.5 rounded-2xl bg-card border border-border space-y-1">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">Risk % Account</span>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={riskPercent ?? ''}
+                    onChange={(e) => setRiskPercent(e.target.value ? Number(e.target.value) : undefined)}
+                    placeholder="1.0"
+                    className="font-mono text-xs h-7 w-20 bg-background border-border"
+                  />
+                  <span className="font-bold text-muted-foreground">%</span>
                 </div>
               </div>
             </div>
-          )
-        })()}
 
-        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground pt-1 border-t border-border/40">
-          <div className="flex items-center gap-4">
-            <span>Komisi: <strong className="text-foreground font-mono">${trade.commission}</strong></span>
-            <span>Swap: <strong className="text-foreground font-mono">${trade.swap}</strong></span>
+            {/* 📊 HORIZONTAL R:R GAUGE BAR (Requirement 3) */}
+            <div className="p-5 rounded-2xl bg-card border border-border space-y-3">
+              <div className="flex items-center justify-between text-xs font-mono font-bold">
+                <span className="text-destructive flex items-center gap-1">🔴 SL: {slP ?? 'N/A'}</span>
+                <span className="text-foreground">⚪ Entry: {openP}</span>
+                <span className="text-emerald-400 flex items-center gap-1">🟢 TP: {tpP ?? 'N/A'}</span>
+              </div>
+
+              {/* Bar Visual Track */}
+              <div className="relative w-full h-4 bg-muted/60 rounded-full overflow-hidden flex">
+                <div className="w-1/2 h-full bg-destructive/30 border-r border-background" />
+                <div className="w-1/2 h-full bg-emerald-500/30" />
+
+                {/* Actual Exit Marker */}
+                <div
+                  className="absolute top-0 bottom-0 w-2.5 bg-amber-400 rounded-full shadow-[0_0_10px_rgba(251,191,36,0.8)] border border-background transition-all duration-300 -ml-1.25"
+                  style={{ left: `${actualMarkerPct}%` }}
+                  title={`Actual Exit: ${closeP}`}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground font-semibold pt-1">
+                <span>Area Stop Loss</span>
+                <span className="text-amber-400 font-mono">Marker Exit: {closeP}</span>
+                <span>Area Take Profit</span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <Clock className="h-3.5 w-3.5 text-primary" />
-            <span>
-              Open:{' '}
-              {new Date(trade.open_time).toLocaleDateString('id-ID', {
-                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-              })}
-            </span>
-            {trade.close_time && (
-              <span className="ml-2">
-                → Close:{' '}
-                {new Date(trade.close_time).toLocaleDateString('id-ID', {
-                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                })}
-              </span>
-            )}
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* SECTION 2: Form Jurnal */}
-      <form onSubmit={handleSaveJournal} className="space-y-6">
-        <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-md space-y-5">
-          <div className="border-b border-border pb-3">
-            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" /> Form Refleksi &amp; Jurnal Kualitatif
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Lengkapi kolom di bawah untuk evaluasi psikologi, strategi, dan pembelajaran.
-            </p>
-          </div>
-
-          {/* Alasan Entry */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">
-              Alasan Entry (Setup &amp; Analisa)
-            </label>
-            <textarea
-              rows={3}
-              placeholder="Jelaskan analisa teknikal/fundamental saat mengambil trade ini..."
-              value={reasonEntry}
-              onChange={(e) => setReasonEntry(e.target.value)}
-              className="w-full bg-background border border-border rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-y"
-            />
-          </div>
-
-          {/* Manual Input SL & TP (Jika dari MT5 bernilai 0 / N/A) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 border border-border/50 p-3.5 rounded-xl">
-            <div className="space-y-1">
-              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">
-                Stop Loss (SL) Manual
-              </label>
-              <input
-                type="number"
-                step="any"
-                placeholder="Misal: 4040.00"
-                value={editSl}
-                onChange={(e) => setEditSl(e.target.value)}
-                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <span className="text-[10px] text-muted-foreground block">Isi SL jika di MT5 tidak terpasang</span>
+      {/* ========================================================================= */}
+      {/* 3️⃣ SECTION 3: FORM REFLEKSI & JURNAL KUALITATIF (Requirement 5) */}
+      {/* ========================================================================= */}
+      <div className="bg-gradient-to-br from-card via-card to-emerald-500/10 border border-emerald-500/30 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
+        <div
+          onClick={() => setSection3Open(!section3Open)}
+          className="flex items-center justify-between border-b border-border/60 pb-3 cursor-pointer select-none"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+              <Brain className="h-5 w-5" />
             </div>
-
-            <div className="space-y-1">
-              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">
-                Take Profit (TP) Manual
-              </label>
-              <input
-                type="number"
-                step="any"
-                placeholder="Misal: 4065.00"
-                value={editTp}
-                onChange={(e) => setEditTp(e.target.value)}
-                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <span className="text-[10px] text-muted-foreground block">Isi TP jika di MT5 tidak terpasang</span>
-            </div>
-          </div>
-
-          {/* Mood & Disiplin */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">Kondisi Emosi</label>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { key: 'confident', label: '😊 Percaya Diri' },
-                  { key: 'neutral',   label: '😐 Netral' },
-                  { key: 'fomo',      label: '😤 FOMO' },
-                  { key: 'anxious',   label: '😰 Cemas' },
-                  { key: 'greedy',    label: '🤑 Serakah' },
-                ].map((m) => (
-                  <button
-                    key={m.key} type="button" onClick={() => setMood(m.key as MoodType)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer min-h-[36px]',
-                      mood === m.key
-                        ? 'bg-primary text-primary-foreground border-primary font-bold shadow-sm'
-                        : 'bg-background border-border text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">Kedisiplinan</label>
-              <div className="flex items-center gap-3">
-                {[
-                  { val: 'yes', label: '✓ Ikut Rules', active: 'bg-profit/20 text-profit border-profit' },
-                  { val: 'no',  label: 'Melanggar Rules', active: 'bg-loss/20 text-loss border-loss' },
-                ].map(({ val, label, active }) => (
-                  <button
-                    key={val} type="button"
-                    onClick={() => setDiscipline(val as 'yes' | 'no')}
-                    className={cn(
-                      'flex-1 py-2.5 px-4 rounded-xl text-xs font-bold border transition-all cursor-pointer min-h-[44px]',
-                      discipline === val ? active : 'bg-background border-border text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Strategies */}
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">Strategi / Setup</label>
-            {strategies.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {strategies.map((s: { id: string; name: string }) => {
-                  const sel = selectedStrategies.includes(s.id)
-                  return (
-                    <button
-                      key={s.id} type="button" onClick={() => toggleStrategy(s.id)}
-                      className={cn(
-                        'px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer min-h-[36px]',
-                        sel
-                          ? 'bg-primary/20 text-primary border-primary font-bold'
-                          : 'bg-background border-border text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {sel && <Check className="inline h-3.5 w-3.5 mr-1" />}
-                      {s.name}
-                    </button>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">Belum ada strategi. Tambahkan di halaman Strategi &amp; Tag.</p>
-            )}
-          </div>
-
-          {/* Risk %, Auto R:R, Self Grade */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Input label="Risk (%)" type="number" step="0.1" placeholder="1.0"
-              value={riskPercent ?? ''} onChange={(e) => setRiskPercent(parseFloat(e.target.value) || undefined)} />
-
-            <div className="bg-muted/20 border border-border/60 rounded-xl p-2.5 space-y-0.5">
-              <span className="text-[11px] font-semibold text-foreground uppercase tracking-wider block">Planned R:R</span>
-              <span className="font-mono font-extrabold text-primary text-sm block">
-                {(() => {
-                  const currentSl = editSl !== '' ? Number(editSl) : trade.sl
-                  const currentTp = editTp !== '' ? Number(editTp) : trade.tp
-                  return analyzeTradeExit({
-                    direction: trade.direction, open_price: trade.open_price, close_price: trade.close_price, sl: currentSl, tp: currentTp, pnl: trade.pnl, status: trade.status
-                  }).plannedRR
-                })()}
-              </span>
-              <span className="text-[9px] text-muted-foreground block">Auto dari SL &amp; TP</span>
-            </div>
-
-            <div className="bg-muted/20 border border-border/60 rounded-xl p-2.5 space-y-0.5">
-              <span className="text-[11px] font-semibold text-foreground uppercase tracking-wider block">Actual R:R</span>
-              <span className={cn('font-mono font-extrabold text-sm block', isProfit ? 'text-profit' : 'text-loss')}>
-                {(() => {
-                  const currentSl = editSl !== '' ? Number(editSl) : trade.sl
-                  const currentTp = editTp !== '' ? Number(editTp) : trade.tp
-                  return analyzeTradeExit({
-                    direction: trade.direction, open_price: trade.open_price, close_price: trade.close_price, sl: currentSl, tp: currentTp, pnl: trade.pnl, status: trade.status
-                  }).actualRR
-                })()}
-              </span>
-              <span className="text-[9px] text-muted-foreground block">Auto dari Harga Exit</span>
-            </div>
-
             <div>
-              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Self Grade</label>
-              <select
-                value={selfGrade || ''}
-                onChange={(e) => setSelfGrade((e.target.value as SelfGrade) || undefined)}
-                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]"
-              >
-                <option value="">Pilih Grade</option>
-                <option value="A">Grade A (Sempurna)</option>
-                <option value="B">Grade B (Bagus)</option>
-                <option value="C">Grade C (Cukup)</option>
-                <option value="D">Grade D (Kurang)</option>
-                <option value="F">Grade F (Fatal)</option>
-              </select>
+              <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                3. Refleksi &amp; Jurnal Kualitatif
+              </h2>
+              <p className="text-xs text-muted-foreground">Kondisi emosi, kedisiplinan, strategi, tag kesalahan &amp; screenshot</p>
             </div>
           </div>
+          <button type="button" className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
+            {section3Open ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </button>
+        </div>
 
-          {/* Mistake Tags */}
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-loss uppercase tracking-wider">Tag Kesalahan</label>
-            {mistakeTags.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {mistakeTags.map((m: { id: string; name: string }) => {
-                  const sel = selectedMistakes.includes(m.id)
-                  return (
+        {section3Open && (
+          <div className="space-y-5 animate-in fade-in duration-200">
+            {/* Grid 1: Mood/Emosi & Kedisiplinan Pill Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Mood Selection */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-foreground">
+                  Kondisi Emosi Saat Entry
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {moodOptions.map((m) => (
                     <button
-                      key={m.id} type="button" onClick={() => toggleMistake(m.id)}
+                      key={m.type}
+                      type="button"
+                      onClick={() => setMood(m.type)}
                       className={cn(
-                        'px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer min-h-[36px]',
-                        sel
-                          ? 'bg-loss/20 text-loss border-loss font-bold'
-                          : 'bg-background border-border text-muted-foreground hover:text-foreground'
+                        'px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5',
+                        mood === m.type
+                          ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-md ring-1 ring-purple-500/30'
+                          : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/30'
                       )}
                     >
-                      {sel && <Check className="inline h-3.5 w-3.5 mr-1" />}
-                      {m.name}
+                      <span>{m.emoji}</span>
+                      <span>{m.label}</span>
                     </button>
-                  )
-                })}
+                  ))}
+                </div>
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">Belum ada tag kesalahan. Tambahkan di halaman Strategi &amp; Tag.</p>
-            )}
-          </div>
 
-          {/* Lesson Learned */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">Lesson Learned</label>
-            <textarea
-              rows={3}
-              placeholder="Apa pelajaran utama dari trade ini..."
-              value={lessonLearned}
-              onChange={(e) => setLessonLearned(e.target.value)}
-              className="w-full bg-background border border-border rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-y"
-            />
-          </div>
+              {/* Kedisiplinan Selection */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-foreground">
+                  Kedisiplinan Rencana Trading
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDiscipline('yes')}
+                    className={cn(
+                      'flex-1 py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5',
+                      discipline === 'yes'
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-md'
+                        : 'bg-card border-border text-muted-foreground hover:bg-muted/30'
+                    )}
+                  >
+                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                    <span>Ikut Rules (Disiplin)</span>
+                  </button>
 
-          {/* Screenshots */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">
-                Screenshot Chart (Opsional, max 5MB)
-              </label>
-              <select
-                value={uploadType}
-                onChange={(e) => setUploadType(e.target.value as 'entry' | 'exit')}
-                className="text-xs bg-background border border-border rounded-lg px-2 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="entry">Entry</option>
-                <option value="exit">Exit</option>
-              </select>
+                  <button
+                    type="button"
+                    onClick={() => setDiscipline('no')}
+                    className={cn(
+                      'flex-1 py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5',
+                      discipline === 'no'
+                        ? 'bg-destructive/20 text-destructive border-destructive/50 shadow-md'
+                        : 'bg-card border-border text-muted-foreground hover:bg-muted/30'
+                    )}
+                  >
+                    <ShieldAlert className="h-4 w-4 text-destructive" />
+                    <span>Melanggar Rules</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Existing screenshots */}
-            {screenshots.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {screenshots.map((shot: { id: string; type: string; url: string }) => (
-                  <div key={shot.id} className="relative group rounded-xl overflow-hidden border border-border bg-black/40 aspect-video">
-                    <img src={shot.url} alt={`Screenshot ${shot.type}`} className="w-full h-full object-contain" />
-                    <span className="absolute top-1.5 left-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded capitalize">
-                      {shot.type}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Grid 2: Strategi & Tag Kesalahan (With Inline CTAs) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Strategi Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-foreground">Strategi / Setup Digunakan</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddStrategyOpen(true)}
+                    className="text-[11px] font-bold text-amber-500 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" /> Tambah Strategi
+                  </button>
+                </div>
 
-            <label className={cn(
-              'border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors',
-              uploadMutation.isPending
-                ? 'opacity-50 cursor-not-allowed border-border'
-                : 'border-border hover:border-primary/50 bg-muted/20'
-            )}>
-              {uploadMutation.isPending ? (
-                <Loader2 className="h-6 w-6 text-primary animate-spin" />
-              ) : (
-                <Upload className="h-5 w-5 text-primary" />
-              )}
-              <div className="text-center">
-                <span className="text-xs font-semibold text-foreground">
-                  {uploadMutation.isPending ? 'Mengupload...' : 'Klik untuk upload screenshot'}
-                </span>
-                <p className="text-[11px] text-muted-foreground">JPG, PNG, WEBP (max 5MB)</p>
+                <div className="flex flex-wrap gap-2">
+                  {strategies.map((s: any) => {
+                    const isSelected = selectedStrategies.includes(s.id)
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => toggleStrategy(s.id)}
+                        className={cn(
+                          'px-3 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer',
+                          isSelected
+                            ? 'bg-amber-500 text-black border-amber-500 font-bold shadow-sm'
+                            : 'bg-card border-border text-muted-foreground hover:bg-muted/30'
+                        )}
+                      >
+                        {s.name}
+                      </button>
+                    )
+                  })}
+                  {strategies.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">Belum ada strategi tersimpan.</p>
+                  )}
+                </div>
               </div>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={handleImageUpload}
-                disabled={uploadMutation.isPending}
-                className="hidden"
+
+              {/* Tag Kesalahan Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-foreground">Tag Kesalahan (Jika Ada)</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddTagOpen(true)}
+                    className="text-[11px] font-bold text-destructive hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" /> Tambah Tag
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {mistakeTags.map((m: any) => {
+                    const isSelected = selectedMistakes.includes(m.id)
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggleMistake(m.id)}
+                        className={cn(
+                          'px-3 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer',
+                          isSelected
+                            ? 'bg-destructive text-white border-destructive font-bold shadow-sm'
+                            : 'bg-card border-border text-muted-foreground hover:bg-muted/30'
+                        )}
+                      >
+                        {m.name}
+                      </button>
+                    )
+                  })}
+                  {mistakeTags.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">Belum ada tag kesalahan.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Textarea 1: Alasan Entry */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-foreground">Alasan &amp; Konfirmasi Entry</label>
+              <textarea
+                rows={3}
+                value={reasonEntry}
+                onChange={(e) => setReasonEntry(e.target.value)}
+                placeholder="Tulis alasan teknikal/fundamental entry (contoh: Breakout H4, Retest FVG, Confluence EMA 200)..."
+                className="w-full bg-background border border-border rounded-2xl p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-emerald-500 transition-all resize-y"
               />
-            </label>
+            </div>
+
+            {/* Textarea 2: Pelajaran / Catatan Refleksi */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-foreground">Pelajaran &amp; Catatan Refleksi</label>
+              <textarea
+                rows={3}
+                value={lessonLearned}
+                onChange={(e) => setLessonLearned(e.target.value)}
+                placeholder="Apa pelajaran berharga atau hal yang bisa diperbaiki dari posisi trade ini..."
+                className="w-full bg-background border border-border rounded-2xl p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-emerald-500 transition-all resize-y"
+              />
+            </div>
+
+            {/* Multi Screenshot Upload & Side-by-Side Thumbnail Preview (Requirement 5) */}
+            <div className="space-y-3 pt-2">
+              <label className="block text-xs font-bold text-foreground">Screenshot Chart (Entry &amp; Exit)</label>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Entry Screenshot Box */}
+                <div className="p-4 rounded-2xl bg-card border border-border space-y-2">
+                  <span className="text-xs font-bold text-foreground block">1. Screenshot Entry</span>
+                  {entryScreenshot ? (
+                    <div className="relative group rounded-xl overflow-hidden border border-border">
+                      <img src={entryScreenshot.url} alt="Entry Screenshot" className="w-full h-36 object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <a href={entryScreenshot.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-white underline">
+                          Buka Gambar Utuh
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="h-36 rounded-xl border border-dashed border-border/80 bg-muted/10 hover:bg-muted/30 flex flex-col items-center justify-center cursor-pointer transition-all">
+                      <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                      <span className="text-xs font-bold text-foreground">+ Upload Entry</span>
+                      <span className="text-[10px] text-muted-foreground">PNG/JPG Max 5MB</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload('entry', e)} className="hidden" />
+                    </label>
+                  )}
+                </div>
+
+                {/* Exit Screenshot Box */}
+                <div className="p-4 rounded-2xl bg-card border border-border space-y-2">
+                  <span className="text-xs font-bold text-foreground block">2. Screenshot Exit</span>
+                  {exitScreenshot ? (
+                    <div className="relative group rounded-xl overflow-hidden border border-border">
+                      <img src={exitScreenshot.url} alt="Exit Screenshot" className="w-full h-36 object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <a href={exitScreenshot.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-white underline">
+                          Buka Gambar Utuh
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="h-36 rounded-xl border border-dashed border-border/80 bg-muted/10 hover:bg-muted/30 flex flex-col items-center justify-center cursor-pointer transition-all">
+                      <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                      <span className="text-xs font-bold text-foreground">+ Upload Exit</span>
+                      <span className="text-[10px] text-muted-foreground">PNG/JPG Max 5MB</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload('exit', e)} className="hidden" />
+                    </label>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 📌 BOTTOM FLOATING ACTION BAR (Requirement 2) */}
+      <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-8 sm:w-auto z-40 bg-card/95 border border-amber-500/40 rounded-2xl p-3.5 shadow-2xl backdrop-blur-md flex items-center gap-3 justify-between">
+        <Link
+          href="/trades"
+          className="px-4 py-2 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Batal
+        </Link>
+
+        <Button
+          type="button"
+          onClick={() => handleSaveJournal()}
+          disabled={saveMutation.isPending}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-lg transition-all"
+        >
+          {saveMutation.isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Menyimpan...
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4 mr-2" /> Simpan Jurnal Trade
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* ➕ MODAL QUICK ADD STRATEGY */}
+      {isAddStrategyOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Target className="h-4 w-4 text-amber-500" /> Tambah Strategi Baru
+              </h3>
+              <button type="button" onClick={() => setIsAddStrategyOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground block font-semibold">Nama Strategi / Setup</label>
+              <Input
+                type="text"
+                placeholder="Contoh: Breakout FVG H4"
+                value={newStrategyName}
+                onChange={(e) => setNewStrategyName(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" onClick={() => setIsAddStrategyOpen(false)}>Batal</Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!newStrategyName.trim() || addStrategyMutation.isPending}
+                onClick={() => addStrategyMutation.mutate(newStrategyName.trim())}
+              >
+                {addStrategyMutation.isPending ? 'Menyimpan...' : 'Simpan Strategi'}
+              </Button>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Submit */}
-        <div className="flex items-center justify-end gap-3">
-          <Button variant="outline" type="button" onClick={() => router.push('/trades')}>
-            Batal
-          </Button>
-          <Button variant="primary" type="submit" isLoading={saveMutation.isPending}>
-            <Save className="h-4 w-4 mr-2" /> Simpan Jurnal Trade
-          </Button>
+      {/* ➕ MODAL QUICK ADD MISTAKE TAG */}
+      {isAddTagOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-destructive" /> Tambah Tag Kesalahan
+              </h3>
+              <button type="button" onClick={() => setIsAddTagOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground block font-semibold">Nama Tag Kesalahan</label>
+              <Input
+                type="text"
+                placeholder="Contoh: Geser SL / Overlot"
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" onClick={() => setIsAddTagOpen(false)}>Batal</Button>
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={!newTagName.trim() || addTagMutation.isPending}
+                onClick={() => addTagMutation.mutate(newTagName.trim())}
+              >
+                {addTagMutation.isPending ? 'Menyimpan...' : 'Simpan Tag'}
+              </Button>
+            </div>
+          </div>
         </div>
-      </form>
+      )}
     </div>
   )
 }

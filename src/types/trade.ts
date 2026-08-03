@@ -59,5 +59,7 @@ export interface Trade {
   status: TradeStatus
   session?: TradingSession
   journalStatus: JournalStatus
+  mood?: MoodType
+  discipline?: 'yes' | 'no'
   journal?: TradeJournal
 }
