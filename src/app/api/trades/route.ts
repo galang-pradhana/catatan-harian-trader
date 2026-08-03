@@ -61,6 +61,14 @@ export async function GET(request: NextRequest) {
         .lte('open_time', `${date}T23:59:59.999Z`)
     }
 
+    const month = searchParams.get('month')
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const [y, m] = month.split('-').map(Number)
+      const monthStart = new Date(Date.UTC(y, m - 1, 1)).toISOString()
+      const monthEnd   = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999)).toISOString()
+      query = query.gte('open_time', monthStart).lte('open_time', monthEnd)
+    }
+
     if (result === 'profit') query = query.gt('pnl', 0)
     if (result === 'loss')   query = query.lt('pnl', 0)
 

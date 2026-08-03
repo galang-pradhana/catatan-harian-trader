@@ -1,8 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Filter, Search, X, ChevronDown, Check, RotateCcw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import React, { useState, useMemo } from 'react'
+import { Filter, Search, X, RotateCcw, ChevronDown, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface FilterState {
@@ -12,6 +11,7 @@ export interface FilterState {
   result: 'all' | 'profit' | 'loss'
   journalStatus: 'all' | 'complete' | 'incomplete'
   strategyId: string
+  month?: string
   date?: string
 }
 
@@ -21,20 +21,34 @@ export interface TradeFilterProps {
   onReset: () => void
 }
 
+function buildMonthOptions(): Array<{ value: string; label: string }> {
+  const options = []
+  const now = new Date()
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const label = d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+    options.push({ value, label: `${label}` })
+  }
+  return options
+}
+
 export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false)
+  const monthOptions = useMemo(() => buildMonthOptions(), [])
 
   const handleChange = (key: keyof FilterState, value: string) => {
     onFilterChange({ ...filters, [key]: value })
   }
 
-  // Calculate count of active filters (excluding search and date)
+  // Calculate count of active filters
   let activeFilterCount = 0
   if (filters.symbol !== 'all') activeFilterCount++
   if (filters.status !== 'all') activeFilterCount++
   if (filters.result !== 'all') activeFilterCount++
   if (filters.journalStatus !== 'all') activeFilterCount++
   if (filters.strategyId !== 'all') activeFilterCount++
+  if (filters.month) activeFilterCount++
   if (filters.date) activeFilterCount++
 
   const hasActiveFilters = activeFilterCount > 0 || Boolean(filters.search)
@@ -103,7 +117,7 @@ export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterPro
           Quick Filter:
         </span>
 
-        {/* Chip 1: Belum Lengkap */}
+        {/* Chip 1: Belum Diisi */}
         <button
           type="button"
           onClick={() =>
@@ -147,11 +161,24 @@ export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterPro
           🔴 Hit SL / Loss
         </button>
 
+        {/* Chip 4: Month Active Badge */}
+        {filters.month && (
+          <button
+            type="button"
+            onClick={() => handleChange('month', '')}
+            className="px-3 py-1 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 shrink-0 flex items-center gap-1 cursor-pointer"
+          >
+            <span>Bln: {monthOptions.find(m => m.value === filters.month)?.label || filters.month}</span>
+            <X className="h-3 w-3" />
+          </button>
+        )}
+
+        {/* Chip 5: Date Active Badge */}
         {filters.date && (
           <button
             type="button"
             onClick={() => handleChange('date', '')}
-            className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shrink-0 flex items-center gap-1"
+            className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shrink-0 flex items-center gap-1 cursor-pointer"
           >
             <span>Tgl: {filters.date}</span>
             <X className="h-3 w-3" />
@@ -161,7 +188,26 @@ export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterPro
 
       {/* Expanded Filter Panel Dropdown */}
       {isPanelOpen && (
-        <div className="pt-3 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="pt-3 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+          {/* Filter Bulan */}
+          <div>
+            <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+              Filter Bulan
+            </label>
+            <select
+              value={filters.month || ''}
+              onChange={(e) => handleChange('month', e.target.value)}
+              className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-amber-500"
+            >
+              <option value="">Semua Bulan (All Time)</option>
+              {monthOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Status Posisi */}
           <div>
             <label className="block text-[11px] font-semibold text-muted-foreground mb-1">

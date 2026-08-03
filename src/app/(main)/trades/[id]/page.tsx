@@ -332,25 +332,33 @@ export default function TradeDetailPage({
   const entryScreenshot = screenshots.find((s: any) => s.type === 'entry')
   const exitScreenshot  = screenshots.find((s: any) => s.type === 'exit')
 
+  // Robust property fallback for snake_case (DB API) vs camelCase
+  const openP  = trade.open_price ?? trade.openPrice
+  const closeP = trade.close_price ?? trade.closePrice
+  const openT  = trade.open_time ?? trade.openTime
+  const closeT = trade.close_time ?? trade.closeTime
+  const slP    = editSl ? Number(editSl) : (trade.sl ?? null)
+  const tpP    = editTp ? Number(editTp) : (trade.tp ?? null)
+
   const exitInfo = analyzeTradeExit({
     direction: trade.direction,
-    open_price: trade.openPrice,
-    close_price: trade.closePrice ?? null,
-    sl: editSl ? Number(editSl) : trade.sl ?? null,
-    tp: editTp ? Number(editTp) : trade.tp ?? null,
+    open_price: openP,
+    close_price: closeP ?? null,
+    sl: slP,
+    tp: tpP,
     pnl: trade.pnl ?? null,
     status: trade.status,
   })
 
   // Horizontal Gauge level percentage math for SL - Entry - TP
-  const openP = trade.openPrice
-  const closeP = trade.closePrice ?? openP
-  const slP = editSl ? Number(editSl) : trade.sl
-  const tpP = editTp ? Number(editTp) : trade.tp
-
   let actualMarkerPct = 50
-  if (slP && tpP && slP !== tpP) {
-    actualMarkerPct = Math.min(100, Math.max(0, ((closeP - slP) / (tpP - slP)) * 100))
+  if (slP && tpP && slP !== tpP && openP) {
+    const activePrice = closeP ?? openP
+    if (isBuy) {
+      actualMarkerPct = Math.min(100, Math.max(0, ((activePrice - slP) / (tpP - slP)) * 100))
+    } else {
+      actualMarkerPct = Math.min(100, Math.max(0, ((slP - activePrice) / (slP - tpP)) * 100))
+    }
   }
 
   return (
@@ -460,14 +468,14 @@ export default function TradeDetailPage({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-card border border-border rounded-2xl p-3.5 space-y-1">
                 <span className="text-[10px] font-bold uppercase text-muted-foreground block">Harga Entry</span>
-                <span className="font-mono font-bold text-sm text-foreground">{trade.openPrice}</span>
-                <span className="text-[9px] text-muted-foreground block">{new Date(trade.openTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="font-mono font-bold text-sm text-foreground">{openP ?? '-'}</span>
+                <span className="text-[9px] text-muted-foreground block">{openT ? new Date(openT).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</span>
               </div>
 
               <div className="bg-card border border-border rounded-2xl p-3.5 space-y-1">
                 <span className="text-[10px] font-bold uppercase text-muted-foreground block">Harga Exit</span>
-                <span className="font-mono font-bold text-sm text-foreground">{trade.closePrice ?? '-'}</span>
-                <span className="text-[9px] text-muted-foreground block">{trade.closeTime ? new Date(trade.closeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Running'}</span>
+                <span className="font-mono font-bold text-sm text-foreground">{closeP ?? '-'}</span>
+                <span className="text-[9px] text-muted-foreground block">{closeT ? new Date(closeT).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Running'}</span>
               </div>
 
               <div className="bg-card border border-border rounded-2xl p-3.5 space-y-1">

@@ -87,6 +87,7 @@ async function fetchTrades(filters: FilterState, page: number): Promise<{ trades
   if (filters.status !== 'all')        params.set('status', filters.status)
   if (filters.result !== 'all')        params.set('result', filters.result)
   if (filters.journalStatus !== 'all') params.set('journalStatus', filters.journalStatus)
+  if (filters.month)                   params.set('month', filters.month)
   if (filters.date)                    params.set('date', filters.date)
 
   const res = await fetch(`/api/trades?${params.toString()}`)
