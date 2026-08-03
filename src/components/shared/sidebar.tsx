@@ -24,11 +24,13 @@ import {
   PanelLeftOpen,
   LogOut,
   Crown,
+  ShieldCheck,
 } from 'lucide-react'
 
 import { useThemeStore } from '@/store/theme-store'
 import { useSidebarStore } from '@/store/sidebar-store'
 import { cn } from '@/lib/utils'
+import { createClient } from '@/services/supabase/client'
 
 export const navItems = [
   { href: '/dashboard',   label: 'Dashboard',         icon: LayoutDashboard },
@@ -50,6 +52,25 @@ export function Sidebar() {
   const pathname = usePathname()
   const { theme, toggleTheme } = useThemeStore()
   const { isCollapsed, toggleSidebar } = useSidebarStore()
+  const [isAdmin, setIsAdmin] = React.useState(false)
+
+  React.useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+          .then(({ data }) => {
+            if (data?.role === 'admin') {
+              setIsAdmin(true)
+            }
+          })
+      }
+    })
+  }, [])
 
   return (
     <aside
@@ -133,6 +154,20 @@ export function Sidebar() {
 
       {/* Theme Toggle & Logout Footer */}
       <div className="pt-3 border-t border-border/60 w-full space-y-2">
+        {isAdmin && (
+          <Link
+            href="/admin/dashboard"
+            title={isCollapsed ? 'Portal Admin' : undefined}
+            className={cn(
+              'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/20 transition-colors cursor-pointer',
+              isCollapsed && 'justify-center px-0'
+            )}
+          >
+            <ShieldCheck className="h-4 w-4 shrink-0 text-amber-500" />
+            {!isCollapsed && <span>Portal Admin</span>}
+          </Link>
+        )}
+
         <button
           onClick={toggleTheme}
           title={`Ganti ke Tema ${theme === 'dark' ? 'Terang' : 'Gelap'}`}
