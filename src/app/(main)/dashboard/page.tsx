@@ -75,6 +75,13 @@ async function fetchAdvancedMetrics(month: string) {
   return res.json()
 }
 
+async function fetchOpenTrades() {
+  const res = await fetch('/api/trades?status=open&limit=10')
+  if (!res.ok) return []
+  const json = await res.json()
+  return json.trades ?? []
+}
+
 // ── Loading Skeleton ──────────────────────────────────────────
 function SkeletonCard({ className = '' }: { className?: string }) {
   return <div className={`bg-card border border-border rounded-2xl animate-pulse ${className}`} />
@@ -121,6 +128,12 @@ export default function DashboardPage() {
     queryKey: ['dashboard-advanced-metrics', selectedMonth],
     queryFn:  () => fetchAdvancedMetrics(selectedMonth),
     ...queryOpts,
+  })
+
+  const { data: openTrades = [], isLoading: loadOpen } = useQuery({
+    queryKey: ['dashboard-open-trades'],
+    queryFn:  fetchOpenTrades,
+    refetchInterval: 15_000, // Auto refresh open trades every 15s
   })
 
   const isLoading = loadS || loadC || loadW || loadSym || loadH || loadAdv
@@ -204,6 +217,59 @@ export default function DashboardPage() {
             </select>
           </div>
         </div>
+      </div>
+
+      {/* 🟢 Open Trades Banner / Card (Informasi Posisi Berjalan Realtime) */}
+      <div className="bg-card border border-primary/30 rounded-2xl p-5 shadow-sm space-y-3">
+        <div className="flex items-center justify-between border-b border-border/60 pb-3">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+            </span>
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+              Posisi Berjalan (Open Trades)
+            </h3>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-bold border border-primary/30">
+              {openTrades.length} Running
+            </span>
+          </div>
+
+          <a
+            href="/trades?status=open"
+            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+          >
+            Lihat Semua Posisi Running &rarr;
+          </a>
+        </div>
+
+        {openTrades.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {openTrades.slice(0, 4).map((t: any) => {
+              const isBuy = (t.direction || t.type || '').toLowerCase() === 'buy'
+              return (
+                <div key={t.id} className="p-3 rounded-xl border border-border bg-muted/20 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className={`px-2 py-0.5 rounded font-extrabold text-[10px] uppercase ${isBuy ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss'}`}>
+                      {t.direction || t.type}
+                    </span>
+                    <div>
+                      <span className="text-xs font-bold text-foreground block">{t.symbol}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">{t.lots || t.volume || '0.1'} Lot @ {t.open_price ?? t.openPrice ?? '-'}</span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                    Running
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="py-3 text-center text-xs text-muted-foreground bg-muted/10 border border-dashed border-border/60 rounded-xl">
+            🟢 Tidak ada posisi trade yang sedang berjalan (Open) saat ini. Semua posisi sudah ditutup (Closed).
+          </div>
+        )}
       </div>
 
       {/* 1. Summary Stat Cards */}
