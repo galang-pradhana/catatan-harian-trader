@@ -11,6 +11,9 @@ import {
   Calendar as CalendarIcon,
   RefreshCw,
   Loader2,
+  Wallet,
+  Link2,
+  ShieldCheck,
 } from 'lucide-react'
 import { StatCard } from '@/components/shared/stat-card'
 import { PnLCalendar } from '@/components/shared/pnl-calendar'
@@ -82,6 +85,13 @@ async function fetchOpenTrades() {
   return json.trades ?? []
 }
 
+async function fetchMt5Connections() {
+  const res = await fetch('/api/mt5/connections')
+  if (!res.ok) return []
+  const json = await res.json()
+  return json.connections ?? []
+}
+
 // ── Loading Skeleton ──────────────────────────────────────────
 function SkeletonCard({ className = '' }: { className?: string }) {
   return <div className={`bg-card border border-border rounded-2xl animate-pulse ${className}`} />
@@ -134,6 +144,12 @@ export default function DashboardPage() {
     queryKey: ['dashboard-open-trades'],
     queryFn:  fetchOpenTrades,
     refetchInterval: 15_000, // Auto refresh open trades every 15s
+  })
+
+  const { data: mt5Connections = [] } = useQuery({
+    queryKey: ['dashboard-mt5-connections'],
+    queryFn:  fetchMt5Connections,
+    refetchInterval: 30_000, // Refresh MT5 balance every 30s
   })
 
   const isLoading = loadS || loadC || loadW || loadSym || loadH || loadAdv
@@ -271,6 +287,66 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* 💳 Realtime MT5 Account Balance Banner Card */}
+      {mt5Connections.length > 0 && (
+        <div className="bg-card border border-amber-500/30 rounded-2xl p-5 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-border/60 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+                <Wallet className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  Saldo Realtime Akun MT5 (Sync Terakhir)
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Tersinkronisasi otomatis dari EA Connector MetaTrader 5
+                </p>
+              </div>
+            </div>
+
+            <a
+              href="/mt5"
+              className="text-xs font-semibold text-amber-500 hover:underline flex items-center gap-1"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              <span>Kelola Koneksi</span>
+            </a>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {mt5Connections.map((conn: any) => (
+              <div
+                key={conn.id}
+                className="p-3.5 rounded-xl border border-border bg-muted/20 flex items-center justify-between gap-3"
+              >
+                <div>
+                  <span className="text-[11px] text-muted-foreground block truncate">
+                    {conn.brokerName} (#{conn.accountNumber})
+                  </span>
+                  <span className="text-base font-extrabold font-mono text-emerald-500">
+                    {conn.currentBalance != null
+                      ? `$${Number(conn.currentBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                      : 'Belum Sync'}
+                  </span>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 block w-fit ml-auto">
+                    {conn.status === 'connected' ? 'Connected' : 'Offline'}
+                  </span>
+                  {conn.lastSyncedAt && (
+                    <span className="text-[10px] text-muted-foreground mt-1 block">
+                      {new Date(conn.lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 1. Summary Stat Cards */}
       {isLoading ? (

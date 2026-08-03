@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     const { data: connections, error } = await supabase
       .from('mt5_connections')
-      .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at')
+      .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at, current_balance, balance_updated_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -54,6 +54,8 @@ export async function GET(request: NextRequest) {
       lastError: c.last_error,
       lastSyncedAt: c.last_synced_at,
       createdAt: c.created_at,
+      currentBalance: c.current_balance,
+      balanceUpdatedAt: c.balance_updated_at,
     }))
 
     return NextResponse.json({ connections: formatted })
