@@ -8,92 +8,70 @@ export interface PerformanceHighlightsProps {
 
 export function PerformanceHighlights({ highlights }: PerformanceHighlightsProps) {
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
-      <div className="border-b border-border pb-3">
-        <h3 className="text-base font-bold text-foreground">
-          Sorotan Performa (Highlights)
+    <div className="bg-card/70 border border-border/80 rounded-2xl p-4 shadow-sm backdrop-blur-sm">
+      <div className="flex items-center justify-between mb-3 border-b border-border/50 pb-2">
+        <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <Trophy className="h-3.5 w-3.5 text-amber-500" />
+          <span>Sorotan & Rekor Performa (Highlights)</span>
         </h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Rekor trading terbaik, terburuk, dan streak beruntun
-        </p>
+        <span className="text-[10px] text-muted-foreground">Statistik Ekstrem Bulan Ini</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* Compact Horizontal Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
         {/* 1. Best Day */}
-        <div className="bg-profit/10 border border-profit/30 p-3.5 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-profit">
-            <span className="text-[11px] font-bold uppercase tracking-wider">
-              Hari Terbaik
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-semibold">Hari Terbaik</span>
+            <span className="font-mono text-xs font-extrabold text-emerald-500">
+              {highlights.bestDay ? `+$${highlights.bestDay.pnl.toFixed(2)}` : 'N/A'}
             </span>
-            <Trophy className="h-4 w-4" />
           </div>
-          <p className="font-mono font-extrabold text-profit text-lg">
-            {highlights.bestDay ? `+$${highlights.bestDay.pnl.toFixed(2)}` : 'N/A'}
-          </p>
-          <p className="text-[10px] text-muted-foreground font-medium">
-            {highlights.bestDay?.date ?? '-'}
-          </p>
+          <Trophy className="h-4 w-4 text-emerald-500 shrink-0" />
         </div>
 
         {/* 2. Worst Day */}
-        <div className="bg-loss/10 border border-loss/30 p-3.5 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-loss">
-            <span className="text-[11px] font-bold uppercase tracking-wider">
-              Hari Terburuk
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-destructive/10 border border-destructive/20">
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-semibold">Hari Terburuk</span>
+            <span className="font-mono text-xs font-extrabold text-destructive">
+              {highlights.worstDay ? `-$${Math.abs(highlights.worstDay.pnl).toFixed(2)}` : 'N/A'}
             </span>
-            <AlertOctagon className="h-4 w-4" />
           </div>
-          <p className="font-mono font-extrabold text-loss text-lg">
-            {highlights.worstDay ? `-$${Math.abs(highlights.worstDay.pnl).toFixed(2)}` : 'N/A'}
-          </p>
-          <p className="text-[10px] text-muted-foreground font-medium">
-            {highlights.worstDay?.date ?? '-'}
-          </p>
+          <AlertOctagon className="h-4 w-4 text-destructive shrink-0" />
         </div>
 
         {/* 3. Max Win Streak */}
-        <div className="bg-secondary/60 border border-border/60 p-3.5 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-amber-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">
-              Win Streak Maks
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border/60">
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-semibold">Win Streak Maks</span>
+            <span className="font-mono text-xs font-extrabold text-amber-400">
+              {highlights.maxWinStreak} Win
             </span>
-            <Flame className="h-4 w-4 fill-amber-500" />
           </div>
-          <p className="font-mono font-extrabold text-foreground text-lg">
-            {highlights.maxWinStreak} <span className="text-xs font-normal text-muted-foreground">Trade Win</span>
-          </p>
-          <p className="text-[10px] text-profit font-medium">Kemenangan Beruntun</p>
+          <Flame className="h-4 w-4 text-amber-500 fill-amber-500/30 shrink-0" />
         </div>
 
         {/* 4. Max Loss Streak */}
-        <div className="bg-secondary/60 border border-border/60 p-3.5 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">
-              Loss Streak Maks
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border/60">
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-semibold">Loss Streak Maks</span>
+            <span className="font-mono text-xs font-extrabold text-foreground">
+              {highlights.maxLossStreak} Loss
             </span>
-            <Zap className="h-4 w-4" />
           </div>
-          <p className="font-mono font-extrabold text-foreground text-lg">
-            {highlights.maxLossStreak} <span className="text-xs font-normal text-muted-foreground">Trade Loss</span>
-          </p>
-          <p className="text-[10px] text-loss font-medium">Kekalahan Beruntun</p>
+          <Zap className="h-4 w-4 text-muted-foreground shrink-0" />
         </div>
 
         {/* 5. Most Trades Day */}
-        <div className="bg-secondary/60 border border-border/60 p-3.5 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-primary">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">
-              Terbanyak Trade
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border/60 col-span-2 sm:col-span-1">
+          <div>
+            <span className="text-[10px] text-muted-foreground block font-semibold">Terbanyak Trade</span>
+            <span className="font-mono text-xs font-extrabold text-foreground">
+              {highlights.mostTradesDay?.count ?? 0} Trade
             </span>
-            <Calendar className="h-4 w-4" />
           </div>
-          <p className="font-mono font-extrabold text-foreground text-lg">
-            {highlights.mostTradesDay?.count ?? 0}{' '}
-            <span className="text-xs font-normal text-muted-foreground">Trade</span>
-          </p>
-          <p className="text-[10px] text-muted-foreground font-medium">
-            {highlights.mostTradesDay?.date ?? '-'}
-          </p>
+          <Calendar className="h-4 w-4 text-primary shrink-0" />
         </div>
       </div>
     </div>
