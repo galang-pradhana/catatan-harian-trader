@@ -5,8 +5,8 @@
 //+------------------------------------------------------------------+
 #property copyright "Catatan Harian Trader"
 #property link      "https://www.chtrader.web.id"
-#property version   "2.10"
-#property description "EA Connector v2.1: Auto Sync MT5 + MFE (Maximum Favorable Excursion) Exit Efficiency Calculation."
+#property version   "2.20"
+#property description "EA Connector v2.2: Auto Sync MT5 Trade History + SL/TP + MFE Exit Efficiency."
 
 //--- Inputs
 input string   InpApiToken        = "";               // API Token Unik (Salin dari Web Dashboard)
@@ -24,7 +24,7 @@ string   g_serverUrl    = "";
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("[CatatanHarianTrader] v2.1 Memulai EA Connector + MFE...");
+   Print("[CatatanHarianTrader] v2.2 Memulai EA Connector + History SL/TP + MFE...");
 
    // Clean trailing slash from URL
    g_serverUrl = InpServerUrl;
@@ -175,10 +175,13 @@ void SyncTradeHistory()
       double  pnl         = HistoryDealGetDouble(ticket, DEAL_PROFIT);
       double  commission  = HistoryDealGetDouble(ticket, DEAL_COMMISSION);
       double  swap        = HistoryDealGetDouble(ticket, DEAL_SWAP);
+      double  dealSL      = HistoryDealGetDouble(ticket, DEAL_SL);
+      double  dealTP      = HistoryDealGetDouble(ticket, DEAL_TP);
       datetime closeTime  = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
 
       double  openPrice   = 0;
       datetime openTime   = 0;
+      ulong   entryTicket = 0;
 
       for(int j = 0; j < dealsTotal; j++)
       {
@@ -187,10 +190,15 @@ void SyncTradeHistory()
          ENUM_DEAL_ENTRY en2 = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(tk2, DEAL_ENTRY);
          if(en2 != DEAL_ENTRY_IN) continue;
          if(HistoryDealGetInteger(tk2, DEAL_POSITION_ID) != posId) continue;
-         openPrice = HistoryDealGetDouble(tk2, DEAL_PRICE);
-         openTime  = (datetime)HistoryDealGetInteger(tk2, DEAL_TIME);
+         openPrice   = HistoryDealGetDouble(tk2, DEAL_PRICE);
+         openTime    = (datetime)HistoryDealGetInteger(tk2, DEAL_TIME);
+         entryTicket = tk2;
          break;
       }
+
+      // If SL/TP was not set on exit deal, fallback to entry deal SL/TP
+      if(dealSL == 0 && entryTicket > 0) dealSL = HistoryDealGetDouble(entryTicket, DEAL_SL);
+      if(dealTP == 0 && entryTicket > 0) dealTP = HistoryDealGetDouble(entryTicket, DEAL_TP);
 
       // Fallback if entry deal was opened outside HistorySelect timeframe
       if(openPrice <= 0) openPrice = price;
@@ -212,6 +220,9 @@ void SyncTradeHistory()
          dtClose.year, dtClose.mon, dtClose.day,
          dtClose.hour, dtClose.min, dtClose.sec);
 
+      string slStr = (dealSL > 0) ? StringFormat("%.5f", dealSL) : "null";
+      string tpStr = (dealTP > 0) ? StringFormat("%.5f", dealTP) : "null";
+
       string tradeItem = StringFormat(
          "{\"mt5_ticket_id\":%s,"
          "\"symbol\":\"%s\","
@@ -221,8 +232,8 @@ void SyncTradeHistory()
          "\"close_price\":%.5f,"
          "\"open_time\":\"%s\","
          "\"close_time\":\"%s\","
-         "\"sl\":null,"
-         "\"tp\":null,"
+         "\"sl\":%s,"
+         "\"tp\":%s,"
          "\"pnl\":%.2f,"
          "\"commission\":%.2f,"
          "\"swap\":%.2f,"
@@ -236,6 +247,8 @@ void SyncTradeHistory()
          price,
          openTimeISO,
          closeTimeISO,
+         slStr,
+         tpStr,
          pnl,
          commission,
          swap,
