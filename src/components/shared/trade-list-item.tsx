@@ -4,6 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { ArrowUpRight, ArrowDownRight, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Trade } from '@/types/trade'
+import { analyzeTradeExit } from '@/utils/trade-metrics'
 import { cn } from '@/lib/utils'
 
 export interface TradeListItemProps {
@@ -18,6 +19,16 @@ export function TradeListItem({ trade }: TradeListItemProps) {
   const formattedPnl = trade.pnl !== undefined
     ? `${isProfit ? '+' : ''}$${trade.pnl.toFixed(2)}`
     : 'Open'
+
+  const exitInfo = analyzeTradeExit({
+    direction: trade.direction,
+    open_price: trade.openPrice,
+    close_price: trade.closePrice ?? null,
+    sl: trade.sl ?? null,
+    tp: trade.tp ?? null,
+    pnl: trade.pnl ?? null,
+    status: trade.status,
+  })
 
   return (
     <Link
@@ -43,7 +54,7 @@ export function TradeListItem({ trade }: TradeListItemProps) {
           </div>
 
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold text-foreground text-sm group-hover:text-primary transition-colors">
                 {trade.symbol}
               </span>
@@ -57,6 +68,18 @@ export function TradeListItem({ trade }: TradeListItemProps) {
               </span>
               <span className="text-xs text-muted-foreground font-mono">
                 {trade.volume} Lot
+              </span>
+
+              {/* R:R Badge */}
+              {exitInfo.plannedRR !== '-' && (
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-muted text-foreground border border-border">
+                  R:R {exitInfo.plannedRR}
+                </span>
+              )}
+
+              {/* Exit Type Badge */}
+              <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full border', exitInfo.exitBadgeColor)}>
+                {exitInfo.exitTypeLabel}
               </span>
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">

@@ -20,6 +20,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Trade, SelfGrade, MoodType } from '@/types/trade'
+import { analyzeTradeExit } from '@/utils/trade-metrics'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/shared/toast'
@@ -315,7 +316,35 @@ export default function TradeDetailPage({
               <span className={cn('font-mono font-bold text-sm', color || 'text-foreground')}>{value}</span>
             </div>
           ))}
-        </div>
+        {/* Automatic SL/TP R:R & Exit Type Analysis */}
+        {(() => {
+          const exitInfo = analyzeTradeExit(trade)
+          return (
+            <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2.5">
+                <span className="text-xs font-bold text-foreground">Analisis SL/TP &amp; Eksekusi Exit</span>
+                <span className={cn('text-xs font-bold px-3 py-1 rounded-full border', exitInfo.exitBadgeColor)}>
+                  {exitInfo.exitTypeLabel}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-card border border-border/50 rounded-lg p-2.5 space-y-0.5">
+                  <span className="text-muted-foreground block text-[11px]">Rencana R:R (Planned)</span>
+                  <span className="font-mono font-extrabold text-primary text-base">{exitInfo.plannedRR}</span>
+                  <span className="text-[10px] text-muted-foreground block">Berdasarkan SL &amp; TP awal MT5</span>
+                </div>
+                <div className="bg-card border border-border/50 rounded-lg p-2.5 space-y-0.5">
+                  <span className="text-muted-foreground block text-[11px]">Realisasi R:R (Actual)</span>
+                  <span className={cn('font-mono font-extrabold text-base', isProfit ? 'text-profit' : 'text-loss')}>
+                    {exitInfo.actualRR}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground block">Berdasarkan harga close MT5</span>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground pt-1 border-t border-border/40">
           <div className="flex items-center gap-4">
