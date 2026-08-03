@@ -207,17 +207,28 @@ function TradesPageContent() {
     return groups
   }, [filteredTrades])
 
-  // Calendar grouping helper
-  const tradesByDateMap = useMemo(() => {
-    const map = new Map<string, Trade[]>()
-    trades.forEach((t) => {
-      if (!t.openTime) return
-      const dStr = t.openTime.split('T')[0]
-      const list = map.get(dStr) || []
-      map.set(dStr, [...list, t])
-    })
+  // Calendar month data fetcher (fetches ALL days in month regardless of pagination)
+  const { data: calendarMonthData } = useQuery({
+    queryKey: ['trades-calendar-month', currentYear, currentMonth],
+    queryFn: async () => {
+      const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
+      const res = await fetch(`/api/dashboard/calendar?month=${monthStr}`)
+      if (!res.ok) return []
+      const json = await res.json()
+      return json.days ?? []
+    },
+    staleTime: 60_000,
+  })
+
+  const calendarDaysMap = useMemo(() => {
+    const map = new Map<string, { pnl: number | null; tradesCount: number }>()
+    if (calendarMonthData && Array.isArray(calendarMonthData)) {
+      calendarMonthData.forEach((d: any) => {
+        map.set(d.date, { pnl: d.pnl, tradesCount: d.tradesCount })
+      })
+    }
     return map
-  }, [trades])
+  }, [calendarMonthData])
 
   const handleFilterChange = useCallback((next: FilterState) => {
     setFilters(next)
@@ -474,9 +485,9 @@ function TradesPageContent() {
                   {Array.from({ length: totalDays }).map((_, i) => {
                     const dayNum = i + 1
                     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
-                    const dayTrades = tradesByDateMap.get(dateStr) || []
-                    const totalPnl = dayTrades.reduce((acc, t) => acc + (t.pnl || 0), 0)
-                    const hasTrades = dayTrades.length > 0
+                    const dayData = calendarDaysMap.get(dateStr)
+                    const hasTrades = (dayData?.tradesCount ?? 0) > 0
+                    const totalPnl = dayData?.pnl ?? 0
                     const isProfit = totalPnl >= 0
 
                     return (
@@ -504,7 +515,7 @@ function TradesPageContent() {
                         {hasTrades && (
                           <div className="space-y-1 mt-1">
                             <span className="text-[10px] text-muted-foreground block font-semibold">
-                              {dayTrades.length} Trade
+                              {dayData?.tradesCount} Trade
                             </span>
                           </div>
                         )}

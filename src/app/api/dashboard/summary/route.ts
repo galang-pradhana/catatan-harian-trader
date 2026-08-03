@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .gte('open_time', startDate)
       .lte('open_time', endDate)
+      .limit(5000)
 
     if (connectionId) query = query.eq('mt5_connection_id', connectionId)
 
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .gte('open_time', prevStart)
       .lte('open_time', prevEnd)
+      .limit(5000)
 
     if (connectionId) prevQuery = prevQuery.eq('mt5_connection_id', connectionId)
 

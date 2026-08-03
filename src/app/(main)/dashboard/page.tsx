@@ -147,7 +147,8 @@ export default function DashboardPage() {
   // ── LEVEL 2: Mini 7-Day Heatmap Filter ─────────────────────
   const recent7DaysCalendar = useMemo(() => {
     if (!calendar?.days) return []
-    // Take the last 7 days of recorded data
+    const withTrades = calendar.days.filter((d: any) => d.tradesCount > 0 || d.pnl !== null)
+    if (withTrades.length >= 7) return withTrades.slice(-7)
     return calendar.days.slice(-7)
   }, [calendar])
 
@@ -163,6 +164,7 @@ export default function DashboardPage() {
     if (!weekly?.weekly) return []
     return weekly.weekly.map((w: { weekNumber: number; startDate: string; endDate: string; pnl: number; tradesCount: number }) => ({
       week:        `M${w.weekNumber}`,
+      weekName:    `Minggu ${w.weekNumber}`,
       pnl:         w.pnl,
       tradesCount: w.tradesCount,
     }))

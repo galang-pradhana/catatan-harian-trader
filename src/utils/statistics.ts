@@ -109,8 +109,10 @@ export function groupByDay(trades: TradeStat[]): Map<string, { pnl: number; coun
   const map = new Map<string, { pnl: number; count: number }>()
 
   for (const t of trades) {
-    if (t.status !== 'closed' || t.pnl === null || !t.close_time) continue
-    const date = t.close_time.split('T')[0] // YYYY-MM-DD
+    if (t.status !== 'closed' || t.pnl === null) continue
+    const dateRaw = t.close_time || t.open_time
+    if (!dateRaw) continue
+    const date = dateRaw.includes('T') ? dateRaw.split('T')[0] : dateRaw.split(' ')[0]
     const prev = map.get(date) ?? { pnl: 0, count: 0 }
     map.set(date, { pnl: prev.pnl + (t.pnl ?? 0), count: prev.count + 1 })
   }
@@ -129,7 +131,7 @@ export function groupByWeek(
   month: number // 1-indexed
 ): Array<{ weekNumber: number; startDate: string; endDate: string; pnl: number; tradesCount: number }> {
   const firstDay = new Date(Date.UTC(year, month - 1, 1))
-  const lastDay  = new Date(Date.UTC(year, month, 0))
+  const lastDay  = new Date(Date.UTC(year, month, 0, 23, 59, 59))
 
   // Build week buckets (each week starts on Mon or first of month)
   const weeks: Array<{ start: Date; end: Date }> = []
@@ -140,7 +142,7 @@ export function groupByWeek(
     const dayOfWeek = cursor.getUTCDay() // 0=Sun, 1=Mon, ..., 6=Sat
     const daysUntilSun = dayOfWeek === 0 ? 0 : 7 - dayOfWeek
     const weekEnd = new Date(Math.min(
-      Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate() + daysUntilSun),
+      Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate() + daysUntilSun, 23, 59, 59),
       lastDay.getTime()
     ))
     weeks.push({ start: new Date(cursor), end: new Date(weekEnd) })
@@ -149,8 +151,10 @@ export function groupByWeek(
 
   return weeks.map((w, idx) => {
     const weekTrades = trades.filter((t) => {
-      if (t.status !== 'closed' || !t.close_time || t.pnl === null) return false
-      const d = new Date(t.close_time)
+      if (t.status !== 'closed' || t.pnl === null) return false
+      const dateRaw = t.close_time || t.open_time
+      if (!dateRaw) return false
+      const d = new Date(dateRaw)
       return d >= w.start && d <= w.end
     })
 

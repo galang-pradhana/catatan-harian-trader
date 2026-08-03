@@ -19,20 +19,21 @@ export interface WeeklyChartProps {
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload as WeeklyPerformance
-    const isProfit = data.pnl >= 0
+    const data = payload[0].payload as any
+    const isProfit = (data.pnl ?? 0) >= 0
+    const labelText = data.weekName || data.week || label
     return (
       <div className="bg-card border border-border p-3 rounded-xl shadow-lg text-xs space-y-1">
-        <p className="font-bold text-foreground">{label}</p>
+        <p className="font-bold text-foreground">{labelText}</p>
         <p
           className={`font-mono font-extrabold ${
             isProfit ? 'text-profit' : 'text-loss'
           }`}
         >
-          PnL: {isProfit ? '+' : ''}${data.pnl.toFixed(2)}
+          PnL: {isProfit ? '+' : ''}${Number(data.pnl ?? 0).toFixed(2)}
         </p>
         <p className="text-muted-foreground text-[11px]">
-          Total: {data.tradesCount} Transaksi
+          Total: {data.tradesCount ?? 0} Transaksi
         </p>
       </div>
     )
@@ -59,7 +60,7 @@ export function WeeklyChart({ data }: WeeklyChartProps) {
             margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
           >
             <XAxis
-              dataKey="weekName"
+              dataKey="week"
               stroke="#8B93A1"
               fontSize={11}
               tickLine={false}
@@ -75,10 +76,10 @@ export function WeeklyChart({ data }: WeeklyChartProps) {
             <Tooltip content={<CustomTooltip />} />
             <ReferenceLine y={0} stroke="#252A33" strokeDasharray="3 3" />
             <Bar dataKey="pnl" radius={[6, 6, 0, 0]}>
-              {data.map((entry, index) => (
+              {data.map((entry: any, index) => (
                 <Cell
                   key={`cell-${index}`}
-                  fill={entry.pnl >= 0 ? '#22C55E' : '#EF4444'}
+                  fill={(entry.pnl ?? 0) >= 0 ? '#22C55E' : '#EF4444'}
                 />
               ))}
             </Bar>

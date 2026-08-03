@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
       .gte('open_time', startDate)
       .lte('open_time', endDate)
       .eq('status', 'closed')
+      .limit(5000)
 
     if (connectionId) query = query.eq('mt5_connection_id', connectionId)
 
