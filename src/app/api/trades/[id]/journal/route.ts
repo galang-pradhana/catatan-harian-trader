@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { createClient } from '@/services/supabase/server'
 
 const JournalSchema = z.object({
+  sl:              z.number().nullable().optional(),
+  tp:              z.number().nullable().optional(),
   reason_entry:    z.string().max(2000).optional(),
   mood:            z.enum(['neutral', 'confident', 'fomo', 'anxious', 'greedy']).optional(),
   discipline:      z.enum(['yes', 'no']).optional(),
@@ -42,7 +44,7 @@ export async function PUT(
       )
     }
 
-    const { strategy_ids, mistake_tag_ids, ...journalFields } = parsed.data
+    const { strategy_ids, mistake_tag_ids, sl, tp, ...journalFields } = parsed.data
 
     // Verify trade ownership
     const { data: trade, error: tradeErr } = await supabase
@@ -57,6 +59,18 @@ export async function PUT(
         { error: 'NOT_FOUND', message: 'Trade tidak ditemukan' },
         { status: 404 }
       )
+    }
+
+    // Update sl & tp on trades table if provided
+    if (sl !== undefined || tp !== undefined) {
+      await supabase
+        .from('trades')
+        .update({
+          ...(sl !== undefined ? { sl } : {}),
+          ...(tp !== undefined ? { tp } : {}),
+        })
+        .eq('id', id)
+        .eq('user_id', user.id)
     }
 
     // Upsert journal

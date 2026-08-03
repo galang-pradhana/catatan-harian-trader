@@ -117,12 +117,16 @@ export default function TradeDetailPage({
   const [selfGrade,          setSelfGrade]         = useState<SelfGrade | undefined>()
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([])
   const [selectedMistakes,   setSelectedMistakes]   = useState<string[]>([])
+  const [editSl,             setEditSl]            = useState<string>('')
+  const [editTp,             setEditTp]            = useState<string>('')
   const [formInitialized,    setFormInitialized]   = useState(false)
   const [uploadType,         setUploadType]        = useState<'entry' | 'exit'>('entry')
 
   // Initialize form from loaded trade data (only once)
   React.useEffect(() => {
     if (trade && !formInitialized) {
+      setEditSl(trade.sl ? String(trade.sl) : '')
+      setEditTp(trade.tp ? String(trade.tp) : '')
       const j = trade.trade_journal
       if (j) {
         setReasonEntry(j.reason_entry || '')
@@ -191,6 +195,8 @@ export default function TradeDetailPage({
   const handleSaveJournal = (e: React.FormEvent) => {
     e.preventDefault()
     saveMutation.mutate({
+      sl:              editSl ? Number(editSl) : null,
+      tp:              editTp ? Number(editTp) : null,
       reason_entry:    reasonEntry || undefined,
       mood:            mood || undefined,
       discipline:      discipline || undefined,
@@ -397,6 +403,39 @@ export default function TradeDetailPage({
               onChange={(e) => setReasonEntry(e.target.value)}
               className="w-full bg-background border border-border rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-y"
             />
+          </div>
+
+          {/* Manual Input SL & TP (Jika dari MT5 bernilai 0 / N/A) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 border border-border/50 p-3.5 rounded-xl">
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">
+                Stop Loss (SL) Manual
+              </label>
+              <input
+                type="number"
+                step="any"
+                placeholder="Misal: 4040.00"
+                value={editSl}
+                onChange={(e) => setEditSl(e.target.value)}
+                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <span className="text-[10px] text-muted-foreground block">Isi SL jika di MT5 tidak terpasang</span>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">
+                Take Profit (TP) Manual
+              </label>
+              <input
+                type="number"
+                step="any"
+                placeholder="Misal: 4065.00"
+                value={editTp}
+                onChange={(e) => setEditTp(e.target.value)}
+                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <span className="text-[10px] text-muted-foreground block">Isi TP jika di MT5 tidak terpasang</span>
+            </div>
           </div>
 
           {/* Mood & Disiplin */}
