@@ -28,11 +28,11 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('users')
-      .select('id, name, email, role, plan, status, last_active_at, created_at')
+      .select('id, display_name, email, role, plan, status, last_active_at, created_at')
       .order('created_at', { ascending: false })
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`)
+      query = query.or(`display_name.ilike.%${search}%,email.ilike.%${search}%`)
     }
     if (plan && plan !== 'all') {
       query = query.eq('plan', plan)
