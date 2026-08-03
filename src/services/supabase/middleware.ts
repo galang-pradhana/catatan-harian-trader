@@ -49,19 +49,40 @@ export async function updateSession(request: NextRequest) {
   // Public auth routes and API routes (API routes handle their own auth or token validation)
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register')
   const isApiRoute = pathname.startsWith('/api/')
+  const isAuthCallback = pathname.startsWith('/auth/callback')
+  const isOnboardingRoute = pathname === '/onboarding'
 
   // If user is NOT logged in and trying to access protected UI routes (e.g., /dashboard, /trades, /mt5, etc.)
-  if (!user && !isAuthRoute && !isApiRoute && pathname !== '/preview') {
+  if (!user && !isAuthRoute && !isApiRoute && !isAuthCallback && pathname !== '/preview') {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // If user IS logged in and trying to access auth pages (/login, /register)
-  if (user && isAuthRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+  // If user IS logged in
+  if (user) {
+    const phone = user.user_metadata?.phone || user.phone
+    
+    if (!phone && !isOnboardingRoute && !isAuthRoute && !isApiRoute && !isAuthCallback) {
+      // Force user to onboarding if phone is missing
+      const url = request.nextUrl.clone()
+      url.pathname = '/onboarding'
+      return NextResponse.redirect(url)
+    }
+
+    if (phone && isOnboardingRoute) {
+      // User already has phone, redirect away from onboarding
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
+
+    // Redirect logged-in users away from auth pages
+    if (isAuthRoute) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

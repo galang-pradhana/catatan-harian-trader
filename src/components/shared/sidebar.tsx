@@ -64,9 +64,9 @@ export function Sidebar() {
         )}
       >
         <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
-          <div className="h-10 w-10 rounded-xl bg-card border border-border p-1 flex items-center justify-center shrink-0 shadow-sm relative group">
+          <div className="h-10 w-10 flex items-center justify-center shrink-0 relative group">
             <Image
-              src="/logo.png"
+              src="/logoNoBg.png"
               alt="Catatan Harian Trader Logo"
               width={36}
               height={36}

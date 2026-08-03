@@ -37,13 +37,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         {/* Top Brand Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="h-11 w-11 rounded-2xl bg-card/80 border border-border p-1.5 flex items-center justify-center shadow-lg backdrop-blur-md">
+          <div className="h-11 w-11 flex items-center justify-center">
             <Image
-              src="/logo.png"
-              alt="Catatan Harian Trader Logo"
-              width={38}
-              height={38}
-              className="object-contain invert"
+              src="/logoNoBg.png"
+              alt="Catatan Harian Trader"
+              width={44}
+              height={44}
+              className="object-contain invert drop-shadow-md"
               priority
             />
           </div>
@@ -60,13 +60,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Center Graphic & Tagline */}
         <div className="relative z-10 my-auto py-12 max-w-lg space-y-6">
           {/* Logo Line Art Showcase Badge */}
-          <div className="w-24 h-24 rounded-3xl bg-card/40 border border-border/60 backdrop-blur-xl p-3 flex items-center justify-center shadow-2xl mb-6">
+          <div className="w-20 h-20 flex items-center justify-center mb-6">
             <Image
-              src="/logo.png"
+              src="/logoNoBg.png"
               alt="Fox Logo Badge"
-              width={72}
-              height={72}
-              className="object-contain invert opacity-90"
+              width={80}
+              height={80}
+              className="object-contain invert opacity-95 drop-shadow-lg"
             />
           </div>
 
@@ -94,13 +94,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="w-full max-w-md space-y-8">
           {/* Mobile Logo Header */}
           <div className="flex lg:hidden items-center gap-3 justify-center mb-4">
-            <div className="h-10 w-10 rounded-xl bg-card border border-border p-1 flex items-center justify-center shadow-md">
+            <div className="h-10 w-10 flex items-center justify-center">
               <Image
-                src="/logo.png"
+                src="/logoNoBg.png"
                 alt="Logo"
-                width={32}
-                height={32}
-                className="object-contain dark:invert"
+                width={36}
+                height={36}
+                className="object-contain dark:invert drop-shadow-sm"
               />
             </div>
             <div>
