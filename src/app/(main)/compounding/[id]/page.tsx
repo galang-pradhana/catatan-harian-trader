@@ -94,7 +94,6 @@ export default function CompoundingDetailPage() {
   const plan = data?.plan
   const levels = data?.levels || []
 
-  // Initialize edit forms when plan data arrives
   React.useEffect(() => {
     if (plan) {
       setRulesDraft(plan.rulesNotes || '')
@@ -183,7 +182,7 @@ export default function CompoundingDetailPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-16 text-muted-foreground text-xs gap-3">
-        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <span>Memuat detail plan compounding &amp; peta jalan...</span>
       </div>
     )
@@ -221,7 +220,7 @@ export default function CompoundingDetailPage() {
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto px-2 sm:px-4">
       {/* Header & Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
         <div className="flex items-center gap-3">
           <Link
             href="/compounding"
@@ -233,13 +232,13 @@ export default function CompoundingDetailPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-extrabold text-foreground tracking-tight">{plan.name}</h1>
               {plan.isActive && (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-black shadow-sm flex items-center gap-1">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-primary text-primary-foreground shadow-sm flex items-center gap-1">
                   <Crown className="h-3 w-3" />
                   <span>Plan Utama Aktif</span>
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5 font-medium">
               Sumber Modal: <span className="font-semibold text-foreground font-mono">{plan.source}</span>
             </p>
           </div>
@@ -256,7 +255,7 @@ export default function CompoundingDetailPage() {
                   resetBaselineMutation.mutate(plan.currentBalance)
                 }
               }}
-              className="text-xs font-bold gap-1 text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+              className="text-xs font-bold gap-1 text-amber-800 dark:text-amber-400 border-amber-300 dark:border-amber-600/40 hover:bg-amber-50 dark:hover:bg-amber-950/40"
               title="Perbarui baseline modal awal compounding sesuai saldo akun saat ini (setelah WD / Deposit)"
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -270,7 +269,7 @@ export default function CompoundingDetailPage() {
             onClick={() => setIsEditModalOpen(true)}
             className="text-xs font-bold gap-1.5"
           >
-            <Edit3 className="h-3.5 w-3.5 text-amber-400" />
+            <Edit3 className="h-3.5 w-3.5 text-primary" />
             <span>Edit Parameter &amp; Rules</span>
           </Button>
 
@@ -289,45 +288,45 @@ export default function CompoundingDetailPage() {
       />
 
       {/* REQUIREMENT 3: STICKY SUMMARY & PROGRESS BAR */}
-      <div className="bg-card/95 backdrop-blur-md border border-amber-500/30 rounded-2xl p-5 shadow-lg space-y-4">
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-lg font-mono">
+            <div className="h-12 w-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-600/40 flex items-center justify-center text-amber-900 dark:text-amber-400 font-black text-lg font-mono">
               L{plan.currentActiveLevel}
             </div>
             <div>
-              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1">
+              <span className="text-[10px] text-amber-800 dark:text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1">
                 <Zap className="h-3 w-3" /> Saldo Terkini &amp; Position Size
               </span>
               <div className="flex items-baseline gap-2">
                 <span className="text-lg font-black text-foreground font-mono">
                   ${plan.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className="text-xs text-muted-foreground font-sans">
+                <span className="text-xs text-muted-foreground font-sans font-medium">
                   (Modal Awal Baseline: ${plan.initialModal.toLocaleString()})
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-6 flex-wrap">
             <div>
               <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Rekomendasi Ideal Lot ({plan.riskPlanPercent}%)</span>
-              <span className="text-sm font-extrabold text-amber-400 font-mono bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-xl inline-block">
+              <span className="text-sm font-extrabold text-amber-900 dark:text-amber-300 font-mono bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-600/40 px-2.5 py-1 rounded-xl inline-block">
                 {realtimeLot} Lot
               </span>
             </div>
 
             <div>
               <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Batasan Risk ($)</span>
-              <span className="text-sm font-extrabold text-destructive font-mono bg-destructive/10 border border-destructive/20 px-2.5 py-1 rounded-xl inline-block">
+              <span className="text-sm font-extrabold text-red-700 dark:text-red-400 font-mono bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/40 px-2.5 py-1 rounded-xl inline-block">
                 -${realtimeRisk}
               </span>
             </div>
 
             <div className="text-right">
               <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Target Asset Level Ini</span>
-              <span className="text-sm font-extrabold text-emerald-400 font-mono">
+              <span className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400 font-mono">
                 ${realtimeAssetTarget.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </span>
             </div>
@@ -335,19 +334,19 @@ export default function CompoundingDetailPage() {
         </div>
 
         {/* Progress Bar Balance vs Target Level */}
-        <div className="space-y-1.5 pt-2 border-t border-border/50">
+        <div className="space-y-1.5 pt-2 border-t border-border">
           <div className="flex justify-between items-center text-xs font-semibold">
             <span className="text-muted-foreground font-mono">
               💰 Saldo ${plan.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} dari target ${realtimeAssetTarget.toLocaleString()} (+${realtimeTarget})
             </span>
-            <span className="font-mono text-amber-400 font-bold">
+            <span className="font-mono text-amber-800 dark:text-amber-400 font-bold">
               {progressPercent.toFixed(1)}% menuju Level {plan.currentActiveLevel + 1}
             </span>
           </div>
 
-          <div className="h-2.5 w-full bg-muted/60 rounded-full overflow-hidden p-0.5 border border-border/40">
+          <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden p-0.5 border border-border/50">
             <div
-              className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-emerald-400 rounded-full transition-all duration-500"
+              className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-emerald-500 rounded-full transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -355,10 +354,10 @@ export default function CompoundingDetailPage() {
       </div>
 
       {/* REQUIREMENT 2: SECTION "CATATAN & ATURAN TRADING" */}
-      <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-3">
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-amber-400" />
+            <FileText className="h-4 w-4 text-primary" />
             <h2 className="text-xs font-extrabold text-foreground uppercase tracking-wider">
               Catatan &amp; Aturan Trading Pribadi (Rules)
             </h2>
@@ -368,7 +367,7 @@ export default function CompoundingDetailPage() {
             <button
               type="button"
               onClick={() => setIsEditingRules(true)}
-              className="text-xs text-amber-400 hover:underline font-bold inline-flex items-center gap-1 cursor-pointer"
+              className="text-xs text-primary hover:underline font-bold inline-flex items-center gap-1 cursor-pointer"
             >
               <Edit3 className="h-3.5 w-3.5" /> Edit Rules
             </button>
@@ -387,7 +386,7 @@ export default function CompoundingDetailPage() {
                 size="sm"
                 disabled={saveRulesMutation.isPending}
                 onClick={() => saveRulesMutation.mutate(rulesDraft)}
-                className="bg-amber-500 text-black hover:bg-amber-600 text-xs font-bold gap-1"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold gap-1"
               >
                 {saveRulesMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 <span>Simpan Rules</span>
@@ -401,11 +400,11 @@ export default function CompoundingDetailPage() {
             rows={4}
             value={rulesDraft}
             onChange={(e) => setRulesDraft(e.target.value)}
-            className="w-full px-4 py-3 bg-muted/30 border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500 font-sans"
+            className="w-full px-4 py-3 bg-muted/40 border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary font-sans"
             placeholder="Tuliskan aturan compounding pribadi Anda di sini..."
           />
         ) : (
-          <div className="p-3.5 rounded-xl bg-muted/20 border border-border/50 text-xs text-foreground leading-relaxed whitespace-pre-line font-sans">
+          <div className="p-3.5 rounded-xl bg-muted/30 border border-border text-xs text-foreground leading-relaxed whitespace-pre-line font-sans font-medium">
             {plan.rulesNotes ? (
               plan.rulesNotes
             ) : (
@@ -441,16 +440,15 @@ export default function CompoundingDetailPage() {
                 className={cn(
                   'p-4 rounded-2xl border transition-all space-y-3',
                   isActive
-                    ? 'bg-amber-500/10 border-amber-500 shadow-md shadow-amber-500/10 ring-2 ring-amber-500/30'
+                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 dark:border-amber-500 shadow-sm'
                     : item.isAchieved
-                    ? 'bg-card/60 border-emerald-500/30'
+                    ? 'bg-emerald-50/80 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700/40'
                     : 'bg-card border-border',
                   isSelected && !isActive && 'ring-2 ring-primary'
                 )}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {/* Manual Override Checkbox */}
                     <input
                       type="checkbox"
                       checked={item.isAchieved}
@@ -460,7 +458,7 @@ export default function CompoundingDetailPage() {
                           isAchieved: e.target.checked
                         })
                       }
-                      className="h-4 w-4 rounded accent-amber-500 cursor-pointer"
+                      className="h-4 w-4 rounded accent-primary cursor-pointer"
                       title="Override Manual Status Level"
                     />
 
@@ -470,7 +468,7 @@ export default function CompoundingDetailPage() {
                         isActive
                           ? 'bg-amber-500 text-black'
                           : item.isAchieved
-                          ? 'bg-emerald-500/15 text-emerald-400'
+                          ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300'
                           : 'bg-muted text-muted-foreground'
                       )}
                     >
@@ -478,31 +476,31 @@ export default function CompoundingDetailPage() {
                     </span>
 
                     {isActive && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700/50">
                         Aktif
                       </span>
                     )}
                   </div>
 
                   <div className="text-right">
-                    <span className="text-[10px] text-muted-foreground block">Ideal Lot</span>
-                    <span className="font-mono text-xs font-extrabold text-amber-400">
+                    <span className="text-[10px] text-muted-foreground block font-medium">Ideal Lot</span>
+                    <span className="font-mono text-xs font-extrabold text-amber-800 dark:text-amber-400">
                       {item.idealLot} Lot
                     </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/50 text-xs">
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border text-xs">
                   <div>
                     <span className="text-[10px] text-muted-foreground block">Target Plan</span>
-                    <span className="font-mono font-semibold text-emerald-400">
+                    <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">
                       +${item.targetPlan}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-[10px] text-muted-foreground block">Batasan Risk</span>
-                    <span className="font-mono font-semibold text-destructive">
+                    <span className="font-mono font-semibold text-red-700 dark:text-red-400">
                       -${item.riskAmount}
                     </span>
                   </div>
@@ -516,7 +514,7 @@ export default function CompoundingDetailPage() {
                 </div>
 
                 {item.achievedAt && (
-                  <div className="text-[10px] text-emerald-400/90 font-mono pt-1">
+                  <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono pt-1">
                     ✓ Tercapai pada {new Date(item.achievedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </div>
                 )}
@@ -528,7 +526,7 @@ export default function CompoundingDetailPage() {
         {/* DESKTOP VIEW: Data Table (>=768px) */}
         <div className="hidden md:block bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
           <table className="w-full text-left text-xs">
-            <thead className="bg-muted/40 text-muted-foreground border-b border-border font-semibold">
+            <thead className="bg-muted/60 text-muted-foreground border-b border-border font-semibold">
               <tr>
                 <th className="py-3.5 px-4 text-center w-12">Check</th>
                 <th className="py-3.5 px-4">Level</th>
@@ -540,7 +538,7 @@ export default function CompoundingDetailPage() {
                 <th className="py-3.5 px-4 text-center">Trade History</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/60">
+            <tbody className="divide-y divide-border">
               {levels.slice(0, 50).map((item) => {
                 const isActive = item.level === plan.currentActiveLevel
                 const isSelected = selectedLevel === item.level
@@ -552,10 +550,10 @@ export default function CompoundingDetailPage() {
                     className={cn(
                       'transition-colors',
                       isActive
-                        ? 'bg-amber-500/15 font-bold border-l-4 border-l-amber-500'
+                        ? 'bg-amber-50 dark:bg-amber-950/40 font-bold border-l-4 border-l-amber-500'
                         : item.isAchieved
-                        ? 'bg-emerald-500/5 hover:bg-emerald-500/10'
-                        : 'hover:bg-muted/20',
+                        ? 'bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-50/70'
+                        : 'hover:bg-muted/40',
                       isSelected && !isActive && 'bg-primary/10'
                     )}
                   >
@@ -570,24 +568,24 @@ export default function CompoundingDetailPage() {
                             isAchieved: e.target.checked
                           })
                         }
-                        className="h-4 w-4 rounded accent-amber-500 cursor-pointer"
+                        className="h-4 w-4 rounded accent-primary cursor-pointer"
                         title="Klik untuk Override Manual Status Tercapai"
                       />
                     </td>
 
-                    <td className="py-3 px-4 font-mono font-bold">
+                    <td className="py-3 px-4 font-mono font-bold text-foreground">
                       Level {item.level}
                     </td>
 
-                    <td className="py-3 px-4 text-emerald-400 font-mono font-bold">
+                    <td className="py-3 px-4 text-emerald-700 dark:text-emerald-400 font-mono font-bold">
                       +${item.targetPlan}
                     </td>
 
-                    <td className="py-3 px-4 text-destructive font-mono font-semibold">
+                    <td className="py-3 px-4 text-red-700 dark:text-red-400 font-mono font-semibold">
                       -${item.riskAmount}
                     </td>
 
-                    <td className="py-3 px-4 text-amber-400 font-mono font-extrabold">
+                    <td className="py-3 px-4 text-amber-800 dark:text-amber-400 font-mono font-extrabold">
                       {item.idealLot} Lot
                     </td>
 
@@ -598,7 +596,7 @@ export default function CompoundingDetailPage() {
                     <td className="py-3 px-4 text-center">
                       {item.isAchieved ? (
                         <div className="space-y-0.5">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/50">
                             <CheckCircle2 className="h-3 w-3" /> Tercapai
                           </span>
                           {item.achievedAt && (
@@ -608,7 +606,7 @@ export default function CompoundingDetailPage() {
                           )}
                         </div>
                       ) : isActive ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50">
                           Aktif
                         </span>
                       ) : (
@@ -621,7 +619,7 @@ export default function CompoundingDetailPage() {
                       <button
                         type="button"
                         onClick={() => router.push('/trades')}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-muted-foreground hover:text-amber-400 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-muted-foreground hover:text-primary transition-colors cursor-pointer"
                         title="Lihat trade pada periode level ini"
                       >
                         <span>Trade Journal</span>
@@ -642,7 +640,7 @@ export default function CompoundingDetailPage() {
           <div className="bg-card border border-border rounded-3xl p-6 max-w-lg w-full space-y-5 shadow-2xl animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                <Edit3 className="h-5 w-5 text-amber-500" />
+                <Edit3 className="h-5 w-5 text-primary" />
                 <span>Edit Parameter &amp; Aturan Plan</span>
               </h3>
               <button
@@ -661,7 +659,7 @@ export default function CompoundingDetailPage() {
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-muted/30 border border-border rounded-xl text-foreground focus:outline-none focus:border-amber-500"
+                  className="w-full px-3.5 py-2 bg-muted/40 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-medium"
                 />
               </div>
 
@@ -673,7 +671,7 @@ export default function CompoundingDetailPage() {
                     step="0.1"
                     value={editProfit}
                     onChange={(e) => setEditProfit(e.target.value)}
-                    className="w-full px-3 py-2 bg-muted/30 border border-border rounded-xl text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                    className="w-full px-3 py-2 bg-muted/40 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
                   />
                 </div>
                 <div>
@@ -683,7 +681,7 @@ export default function CompoundingDetailPage() {
                     step="0.05"
                     value={editRisk}
                     onChange={(e) => setEditRisk(e.target.value)}
-                    className="w-full px-3 py-2 bg-muted/30 border border-border rounded-xl text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                    className="w-full px-3 py-2 bg-muted/40 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
                   />
                 </div>
                 <div>
@@ -692,7 +690,7 @@ export default function CompoundingDetailPage() {
                     type="number"
                     value={editPipRisk}
                     onChange={(e) => setEditPipRisk(e.target.value)}
-                    className="w-full px-3 py-2 bg-muted/30 border border-border rounded-xl text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                    className="w-full px-3 py-2 bg-muted/40 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
                   />
                 </div>
               </div>
@@ -703,7 +701,7 @@ export default function CompoundingDetailPage() {
                   rows={3}
                   value={rulesDraft}
                   onChange={(e) => setRulesDraft(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted/30 border border-border rounded-xl text-foreground focus:outline-none focus:border-amber-500"
+                  className="w-full px-3.5 py-2.5 bg-muted/40 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-sans"
                 />
               </div>
             </div>
@@ -717,7 +715,7 @@ export default function CompoundingDetailPage() {
                 size="sm"
                 disabled={savePlanMutation.isPending}
                 onClick={() => savePlanMutation.mutate()}
-                className="bg-amber-500 text-black hover:bg-amber-600 font-bold gap-1.5"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold gap-1.5"
               >
                 {savePlanMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 <span>Simpan Perubahan</span>

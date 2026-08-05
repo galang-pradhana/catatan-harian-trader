@@ -17,6 +17,7 @@ import {
   Loader2,
   FileText
 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 export default function CreateCompoundingPlanPage() {
   const router = useRouter()
@@ -103,34 +104,42 @@ export default function CreateCompoundingPlanPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
+    <div className="space-y-6 pb-12 max-w-4xl mx-auto px-2 sm:px-4">
+      {/* Header & Navigation */}
+      <div className="flex items-center gap-3 border-b border-border pb-4">
         <Link
           href="/compounding"
-          className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-foreground">Buat Plan Compounding Baru</h1>
+          <h1 className="text-xl font-extrabold text-foreground tracking-tight">
+            Buat Plan Compounding Baru
+          </h1>
           <p className="text-xs text-muted-foreground">
-            Atur target profit, batasan risiko, dan jarak SL per trade secara terukur
+            Tentukan parameter pertumbuhan modal bertahap &amp; catatan aturan trading pribadi
           </p>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs font-semibold">
-          ⚠️ {errorMsg}
+        <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/30 text-destructive text-xs font-semibold flex items-center gap-2">
+          <ShieldAlert className="h-4 w-4 shrink-0" />
+          <span>{errorMsg}</span>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Basic Info & Modal Source Card */}
+        {/* Basic Info & Source Modal Card */}
         <div className="bg-card border border-border rounded-2xl p-6 space-y-5 shadow-sm">
+          <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <Calculator className="h-4 w-4 text-primary" />
+            <span>Informasi Utama &amp; Sumber Modal</span>
+          </h2>
+
           <div>
-            <label className="block text-xs font-bold text-foreground mb-1.5">
+            <label className="block text-xs font-semibold text-foreground mb-1.5">
               Nama Plan Compounding
             </label>
             <input
@@ -138,13 +147,13 @@ export default function CreateCompoundingPlanPage() {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Misal: Plan Akun Utama Forex (Risk 1.25%)"
-              className="w-full px-4 py-2.5 bg-muted/30 border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500"
+              placeholder="Contoh: Compounding XAUUSD 2026 - Plan A"
+              className="w-full px-4 py-2.5 bg-muted/40 border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary font-medium"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-foreground mb-2">
+            <label className="block text-xs font-semibold text-foreground mb-1.5">
               Sumber Modal Awal
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -153,11 +162,11 @@ export default function CreateCompoundingPlanPage() {
                 onClick={() => setModalSource('mt5')}
                 className={`p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
                   modalSource === 'mt5'
-                    ? 'border-amber-500 bg-amber-500/10 text-foreground font-bold'
+                    ? 'border-primary bg-primary/10 text-foreground font-bold'
                     : 'border-border bg-muted/20 text-muted-foreground hover:bg-muted'
                 }`}
               >
-                <Link2 className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <Link2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                 <div>
                   <span className="text-xs block">Otomatis dari MT5</span>
                   <span className="text-[10px] text-muted-foreground font-normal">
@@ -171,11 +180,11 @@ export default function CreateCompoundingPlanPage() {
                 onClick={() => setModalSource('manual')}
                 className={`p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
                   modalSource === 'manual'
-                    ? 'border-amber-500 bg-amber-500/10 text-foreground font-bold'
+                    ? 'border-primary bg-primary/10 text-foreground font-bold'
                     : 'border-border bg-muted/20 text-muted-foreground hover:bg-muted'
                 }`}
               >
-                <DollarSign className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <DollarSign className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                 <div>
                   <span className="text-xs block">Input Manual (Simulasi)</span>
                   <span className="text-[10px] text-muted-foreground font-normal">
@@ -193,14 +202,14 @@ export default function CreateCompoundingPlanPage() {
               </label>
               {isLoadingMt5 ? (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   <span>Memuat akun MT5...</span>
                 </div>
               ) : mt5Data && mt5Data.length > 0 ? (
                 <select
                   value={selectedMt5Id}
                   onChange={(e) => setSelectedMt5Id(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-muted/30 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full px-4 py-2.5 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
                 >
                   <option value="">Pilih akun MT5...</option>
                   {mt5Data.map((conn: any) => {
@@ -215,7 +224,7 @@ export default function CreateCompoundingPlanPage() {
                   })}
                 </select>
               ) : (
-                <p className="text-xs text-amber-400 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+                <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-800/40">
                   Belum ada akun MT5 terhubung. Menggunakan saldo simulasi manual.
                 </p>
               )}
@@ -231,7 +240,7 @@ export default function CreateCompoundingPlanPage() {
                 value={manualModal}
                 onChange={(e) => setManualModal(e.target.value)}
                 placeholder="1000"
-                className="w-full px-4 py-2.5 bg-muted/30 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full px-4 py-2.5 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
               />
             </div>
           )}
@@ -240,7 +249,7 @@ export default function CreateCompoundingPlanPage() {
         {/* Calculation Parameters Card */}
         <div className="bg-card border border-border rounded-2xl p-6 space-y-6 shadow-sm">
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-            <Sliders className="h-4 w-4 text-amber-500" />
+            <Sliders className="h-4 w-4 text-primary" />
             <span>Parameter Risiko &amp; Target per Level</span>
           </h2>
 
@@ -250,14 +259,14 @@ export default function CreateCompoundingPlanPage() {
                 <label className="text-xs font-semibold text-foreground">
                   Target Profit Plan (%)
                 </label>
-                <span className="text-xs font-bold text-emerald-400 font-mono">{profitPlanPercent}%</span>
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 font-mono">{profitPlanPercent}%</span>
               </div>
               <input
                 type="number"
                 step="0.1"
                 value={profitPlanPercent}
                 onChange={(e) => setProfitPlanPercent(e.target.value)}
-                className="w-full px-4 py-2 bg-muted/30 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full px-4 py-2 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
               />
             </div>
 
@@ -266,14 +275,14 @@ export default function CreateCompoundingPlanPage() {
                 <label className="text-xs font-semibold text-foreground">
                   Risk Plan per Level (%)
                 </label>
-                <span className="text-xs font-bold text-destructive font-mono">{riskPlanPercent}%</span>
+                <span className="text-xs font-bold text-red-700 dark:text-red-400 font-mono">{riskPlanPercent}%</span>
               </div>
               <input
                 type="number"
                 step="0.05"
                 value={riskPlanPercent}
                 onChange={(e) => setRiskPlanPercent(e.target.value)}
-                className="w-full px-4 py-2 bg-muted/30 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full px-4 py-2 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
               />
             </div>
 
@@ -285,7 +294,7 @@ export default function CreateCompoundingPlanPage() {
                 type="number"
                 value={pipRisk}
                 onChange={(e) => setPipRisk(e.target.value)}
-                className="w-full px-4 py-2 bg-muted/30 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full px-4 py-2 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
               />
             </div>
 
@@ -298,63 +307,66 @@ export default function CreateCompoundingPlanPage() {
                 value={pipValue}
                 onChange={(e) => setPipValue(e.target.value)}
                 placeholder="10"
-                className="w-full px-4 py-2 bg-muted/30 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full px-4 py-2 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
               />
             </div>
           </div>
 
-          {/* Live Risk Reward Ratio Preview */}
-          <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-amber-400 block">Preview Ratio Risk:Reward</span>
-              <span className="text-[11px] text-muted-foreground">
-                Target {profitPlanPercent}% ÷ Risk {riskPlanPercent}%
-              </span>
-            </div>
-            <div className="text-right">
-              <span className="text-xl font-extrabold text-amber-400 font-mono">
-                RR 1:{rrRatio}
-              </span>
-            </div>
+          <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 flex items-center justify-between text-xs font-mono">
+            <span className="text-amber-900 dark:text-amber-300 font-sans font-semibold">Preview Ratio Risk:Reward</span>
+            <span className="font-extrabold text-amber-900 dark:text-amber-300 text-sm">
+              RR 1:{rrRatio}
+            </span>
           </div>
         </div>
 
-        {/* REQUIREMENT 2: Section "Catatan & Aturan Trading" */}
-        <div className="bg-card border border-border rounded-2xl p-6 space-y-3 shadow-sm">
-          <label className="text-sm font-bold text-foreground flex items-center gap-2">
-            <FileText className="h-4 w-4 text-amber-500" />
-            <span>Catatan &amp; Aturan Trading Pribadi</span>
-          </label>
+        {/* SECTION "CATATAN & ATURAN TRADING" */}
+        <div className="bg-card border border-border rounded-2xl p-6 space-y-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-bold text-foreground">
+              Catatan &amp; Aturan Trading Pribadi (Rules)
+            </h2>
+          </div>
           <p className="text-xs text-muted-foreground">
-            Tuliskan aturan disiplin pribadi Anda (contoh: SL 50 pips, TP 100 pips, jangan FOMO, stick to plan). Catatan ini akan ditampilkan secara sticky pada halaman detail.
+            Tuliskan aturan compounding pribadi (misal: &quot;Maksimal 2 trade per hari&quot;, &quot;SL Wajib 50 Pips&quot;, &quot;Jangan trade saat high impact news&quot;).
           </p>
 
           <textarea
             rows={4}
             value={rulesNotes}
             onChange={(e) => setRulesNotes(e.target.value)}
-            placeholder="• SL di 50 pips target 100 pips&#10;• Maksimal 2 trade per hari&#10;• Jangan FOMO saat market bergerak cepat&#10;• Stick to plan sampai level 10"
-            className="w-full px-4 py-3 bg-muted/30 border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500"
+            placeholder="Tuliskan aturan disiplin compounding Anda di sini..."
+            className="w-full px-4 py-3 bg-muted/40 border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary font-sans"
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full py-3.5 px-4 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-black font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Menyimpan Plan Compounding...</span>
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="h-4 w-4" />
-              <span>Simpan &amp; Generate Compounding Roadmap</span>
-            </>
-          )}
-        </button>
+        {/* Action Buttons */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <Link
+            href="/compounding"
+            className="px-5 py-2.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground text-xs font-bold transition-colors"
+          >
+            Batal
+          </Link>
+          <Button
+            type="submit"
+            disabled={isSubmitting || !name}
+            className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold gap-2 shadow-md cursor-pointer"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Memproses Plan...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Buat &amp; Aktifkan Plan</span>
+              </>
+            )}
+          </Button>
+        </div>
       </form>
     </div>
   )

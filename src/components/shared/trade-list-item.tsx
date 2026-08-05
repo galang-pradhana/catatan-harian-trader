@@ -50,9 +50,9 @@ export function TradeListItem({ trade }: TradeListItemProps) {
         isOpen
           ? 'border-primary/40 bg-primary/5'
           : !isComplete
-          ? 'border-amber-500/50 bg-amber-500/5 ring-1 ring-amber-500/20'
+          ? 'border-amber-400 dark:border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20'
           : isLoss
-          ? 'border-border border-l-4 border-l-destructive/80'
+          ? 'border-border border-l-4 border-l-red-600 dark:border-l-red-500'
           : 'border-border hover:border-primary/40'
       )}
     >
@@ -63,8 +63,8 @@ export function TradeListItem({ trade }: TradeListItemProps) {
             className={cn(
               'h-10 w-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0',
               isBuy
-                ? 'bg-profit/15 text-profit border border-profit/30'
-                : 'bg-loss/15 text-loss border border-loss/30'
+                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
+                : 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40'
             )}
           >
             {isBuy ? (
@@ -82,12 +82,14 @@ export function TradeListItem({ trade }: TradeListItemProps) {
               <span
                 className={cn(
                   'text-[10px] font-bold uppercase px-1.5 py-0.5 rounded',
-                  isBuy ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss'
+                  isBuy
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300'
                 )}
               >
                 {trade.direction}
               </span>
-              <span className="text-xs text-muted-foreground font-mono">
+              <span className="text-xs text-muted-foreground font-mono font-semibold">
                 {trade.volume} Lot
               </span>
 
@@ -103,26 +105,26 @@ export function TradeListItem({ trade }: TradeListItemProps) {
                 {exitInfo.exitTypeLabel}
               </span>
 
-              {/* Discipline Badge (Requirement 4) */}
+              {/* Discipline Badge */}
               {trade.discipline === 'no' && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-destructive/15 text-destructive border border-destructive/30">
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800/40">
                   <ShieldAlert className="h-3 w-3" /> Melanggar Rules
                 </span>
               )}
               {trade.discipline === 'yes' && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
                   <ShieldCheck className="h-3 w-3" /> Ikut Rules
                 </span>
               )}
 
-              {/* Mood Badge (Requirement 4) */}
+              {/* Mood Badge */}
               {moodObj && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-900 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40">
                   {moodObj.emoji} {moodObj.label}
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
+            <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
               {new Date(trade.openTime).toLocaleDateString('id-ID', {
                 day: 'numeric',
                 month: 'short',
@@ -148,8 +150,8 @@ export function TradeListItem({ trade }: TradeListItemProps) {
                 isOpen
                   ? 'text-primary'
                   : isProfit
-                  ? 'text-profit'
-                  : 'text-loss'
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : 'text-red-700 dark:text-red-400'
               )}
             >
               {formattedPnl}
@@ -160,8 +162,8 @@ export function TradeListItem({ trade }: TradeListItemProps) {
             className={cn(
               'inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border',
               isComplete
-                ? 'bg-profit/10 text-profit border-profit/30'
-                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700/50'
+                : 'bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border-amber-200 dark:border-amber-700/50'
             )}
           >
             {isComplete ? (

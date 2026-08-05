@@ -54,19 +54,19 @@ export function CompoundingQuickActions({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="p-2 rounded-xl bg-card/80 border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer shadow-sm"
+        className="p-2 rounded-xl bg-card border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer shadow-sm"
         title="Aksi Cepat"
       >
         <MoreVertical className="h-4 w-4" />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-10 z-30 w-52 bg-card border border-border/80 rounded-2xl shadow-xl p-1.5 space-y-1 backdrop-blur-md text-xs">
+        <div className="absolute right-0 top-10 z-30 w-52 bg-popover border border-border rounded-2xl shadow-xl p-1.5 space-y-1 text-xs text-popover-foreground">
           {!isActive && (
             <button
               type="button"
               onClick={() => { setIsOpen(false); onSetActive?.() }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left font-bold text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer"
+              className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left font-bold text-amber-800 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
             >
               <Star className="h-4 w-4 shrink-0" />
               <span>Jadikan Plan Aktif</span>
@@ -79,7 +79,7 @@ export function CompoundingQuickActions({
             className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
           >
             <Edit3 className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>Edit Plan & Rules</span>
+            <span>Edit Plan &amp; Rules</span>
           </button>
 
           <button
@@ -100,12 +100,12 @@ export function CompoundingQuickActions({
             <span>{isArchived ? 'Buka Arsip' : 'Arsipkan Plan'}</span>
           </button>
 
-          <div className="h-px bg-border/60 my-1" />
+          <div className="h-px bg-border my-1" />
 
           <button
             type="button"
             onClick={() => { setIsOpen(false); onDelete?.() }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left font-bold text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left font-bold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
           >
             <Trash2 className="h-4 w-4 shrink-0" />
             <span>Hapus Plan</span>

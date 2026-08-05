@@ -41,16 +41,16 @@ export function CompoundingRoadmap({
   const displayLevels = levels.slice(0, 50)
 
   return (
-    <div className="bg-card/90 border border-border/80 rounded-3xl p-5 md:p-6 shadow-sm backdrop-blur-sm space-y-4">
-      <div className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
+    <div className="bg-card border border-border rounded-3xl p-5 md:p-6 shadow-sm space-y-4">
+      <div className="flex items-center justify-between gap-4 border-b border-border pb-3">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <div className="h-8 w-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-600/40 flex items-center justify-center text-amber-800 dark:text-amber-400">
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
             <h2 className="text-sm font-extrabold text-foreground tracking-tight flex items-center gap-2">
               <span>Peta Jalan Level Compounding</span>
-              <span className="text-[10px] font-mono font-bold bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/30">
+              <span className="text-[10px] font-mono font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-600/40">
                 Level {currentActiveLevel} Aktif
               </span>
             </h2>
@@ -64,7 +64,7 @@ export function CompoundingRoadmap({
           <button
             type="button"
             onClick={() => scroll('left')}
-            className="p-2 rounded-xl bg-secondary border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+            className="p-2 rounded-xl bg-muted border border-border hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
             title="Scroll Kiri"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -72,7 +72,7 @@ export function CompoundingRoadmap({
           <button
             type="button"
             onClick={() => scroll('right')}
-            className="p-2 rounded-xl bg-secondary border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+            className="p-2 rounded-xl bg-muted border border-border hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
             title="Scroll Kanan"
           >
             <ChevronRight className="h-4 w-4" />
@@ -98,10 +98,10 @@ export function CompoundingRoadmap({
                 className={cn(
                   'flex-shrink-0 w-[140px] p-3 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between group hover:scale-[1.02]',
                   isActive
-                    ? 'bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-amber-500/5 border-amber-500 shadow-md shadow-amber-500/15 ring-2 ring-amber-500/30'
+                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 dark:border-amber-500 shadow-sm ring-2 ring-amber-400/40'
                     : isAchieved
-                    ? 'bg-emerald-500/10 border-emerald-500/40 hover:border-emerald-400'
-                    : 'bg-card/70 border-border/70 hover:bg-muted/30 hover:border-border',
+                    ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700/50 hover:border-emerald-400'
+                    : 'bg-card border-border hover:bg-muted/40',
                   isSelected && !isActive && 'ring-2 ring-primary'
                 )}
               >
@@ -113,7 +113,7 @@ export function CompoundingRoadmap({
                       isActive
                         ? 'bg-amber-500 text-black font-black'
                         : isAchieved
-                        ? 'bg-emerald-500/20 text-emerald-400'
+                        ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300'
                         : 'bg-muted text-muted-foreground'
                     )}
                   >
@@ -121,7 +121,7 @@ export function CompoundingRoadmap({
                   </span>
 
                   {isAchieved ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   ) : isActive ? (
                     <span className="relative flex h-2.5 w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
@@ -138,16 +138,20 @@ export function CompoundingRoadmap({
                   <span
                     className={cn(
                       'font-mono text-xs font-black block',
-                      isActive ? 'text-amber-400' : isAchieved ? 'text-emerald-400' : 'text-foreground'
+                      isActive
+                        ? 'text-amber-900 dark:text-amber-400'
+                        : isAchieved
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-foreground'
                     )}
                   >
                     ${item.assetPlan.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                   </span>
                 </div>
 
-                <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-between text-[10px] font-mono">
+                <div className="mt-2 pt-2 border-t border-border/60 flex items-center justify-between text-[10px] font-mono">
                   <span className="text-muted-foreground">Lot:</span>
-                  <span className="font-bold text-amber-400">{item.idealLot} Lot</span>
+                  <span className="font-bold text-amber-800 dark:text-amber-400">{item.idealLot} Lot</span>
                 </div>
               </div>
 
@@ -156,7 +160,11 @@ export function CompoundingRoadmap({
                 <div
                   className={cn(
                     'flex-shrink-0 w-6 h-0.5 rounded-full transition-colors',
-                    isAchieved ? 'bg-emerald-500/50' : isActive ? 'bg-amber-500/50' : 'bg-border/60'
+                    isAchieved
+                      ? 'bg-emerald-400 dark:bg-emerald-600/50'
+                      : isActive
+                      ? 'bg-amber-400 dark:bg-amber-600/50'
+                      : 'bg-border'
                   )}
                 />
               )}
