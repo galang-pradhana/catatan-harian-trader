@@ -10,7 +10,6 @@ export async function GET(request: NextRequest) {
       (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) &&
       process.env.NEXT_PUBLIC_SUPABASE_URL !== 'your_supabase_url_here'
 
-
     if (!isSupabaseConfigured) {
       // Demo fallback response
       const { DUMMY_MT5_CONNECTIONS } = await import('@/constants/dummy-mt5')
@@ -45,18 +44,51 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Format DB columns (snake_case) to camelCase frontend interface
-    const formatted = (connections || []).map((c: any) => ({
-      id: c.id,
-      accountNumber: c.account_number,
-      brokerName: c.broker_name,
-      status: c.status,
-      lastError: c.last_error,
-      lastSyncedAt: c.last_synced_at,
-      createdAt: c.created_at,
-      currentBalance: c.current_balance,
-      balanceUpdatedAt: c.balance_updated_at,
-    }))
+    // Fetch closed trade PnL sums per connection as fallback if balance is not updated yet
+    const { data: closedTrades } = await supabase
+      .from('trades')
+      .select('mt5_connection_id, pnl')
+      .eq('user_id', user.id)
+      .eq('status', 'closed')
+
+    const pnlMap = new Map<string, number>()
+    if (closedTrades && Array.isArray(closedTrades)) {
+      closedTrades.forEach((t: any) => {
+        if (t.mt5_connection_id) {
+          const current = pnlMap.get(t.mt5_connection_id) || 0
+          pnlMap.get(t.mt5_connection_id)
+          pnlMap.set(t.mt5_connection_id, current + Number(t.pnl || 0))
+        }
+      })
+    }
+
+    // Format DB columns for both camelCase and snake_case compatibility
+    const formatted = (connections || []).map((c: any) => {
+      const dbBal = c.current_balance !== null && c.current_balance !== undefined ? Number(c.current_balance) : null
+      const tradePnlSum = pnlMap.get(c.id) || 0
+      
+      // Effective balance: use dbBal if present and > 0, otherwise trade PnL sum
+      const effectiveBalance = dbBal !== null && dbBal > 0 ? dbBal : (tradePnlSum !== 0 ? tradePnlSum : (dbBal || 0))
+      const accNumStr = c.account_number ? String(c.account_number) : ''
+      const brokerStr = c.broker_name || 'MT5 Account'
+
+      return {
+        id: c.id,
+        accountNumber: accNumStr,
+        account_number: accNumStr,
+        brokerName: brokerStr,
+        broker_name: brokerStr,
+        name: accNumStr ? `${brokerStr} (#${accNumStr})` : brokerStr,
+        status: c.status,
+        lastError: c.last_error,
+        lastSyncedAt: c.last_synced_at,
+        createdAt: c.created_at,
+        currentBalance: effectiveBalance,
+        current_balance: effectiveBalance,
+        balance: effectiveBalance,
+        balanceUpdatedAt: c.balance_updated_at,
+      }
+    })
 
     return NextResponse.json({ connections: formatted })
   } catch (err: any) {
@@ -74,12 +106,10 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
       process.env.NEXT_PUBLIC_SUPABASE_URL !== 'your_supabase_url_here'
 
-    // Generate fresh plain token and hash it
     const plainToken = generateToken()
     const tokenHash = hashToken(plainToken)
 
     if (!isSupabaseConfigured) {
-      // Demo response when Supabase is not configured yet
       return NextResponse.json(
         {
           connection: {
@@ -109,7 +139,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 1. Check MAX_MT5_CONNECTIONS_PER_USER (Max 3 connections limit)
     const { count, error: countError } = await supabase
       .from('mt5_connections')
       .select('*', { count: 'exact', head: true })
@@ -132,7 +161,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 2. Insert new pending connection with hashed token
     const { data: newConn, error: insertError } = await supabase
       .from('mt5_connections')
       .insert({
@@ -157,7 +185,7 @@ export async function POST(request: NextRequest) {
           status: newConn.status,
           createdAt: newConn.created_at,
         },
-        token: plainToken, // Returned ONLY ONCE
+        token: plainToken,
         message: 'Token API berhasil dibuat. Salin token dan tempelkan ke EA MT5 Anda.',
       },
       { status: 201 }

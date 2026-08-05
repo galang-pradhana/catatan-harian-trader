@@ -203,11 +203,16 @@ export default function CreateCompoundingPlanPage() {
                   className="w-full px-4 py-2.5 bg-muted/30 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-amber-500 font-mono"
                 >
                   <option value="">Pilih akun MT5...</option>
-                  {mt5Data.map((conn: any) => (
-                    <option key={conn.id} value={conn.id}>
-                      {conn.name || 'Akun MT5'} (#{conn.account_number}) - Balance ${Number(conn.balance || 0).toLocaleString()}
-                    </option>
-                  ))}
+                  {mt5Data.map((conn: any) => {
+                    const label = conn.brokerName || conn.broker_name || conn.name || 'Akun MT5'
+                    const accNo = conn.accountNumber || conn.account_number || ''
+                    const bal = Number(conn.currentBalance ?? conn.balance ?? conn.current_balance ?? 0)
+                    return (
+                      <option key={conn.id} value={conn.id}>
+                        {label} {accNo ? `(#${accNo})` : ''} - Balance ${bal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </option>
+                    )
+                  })}
                 </select>
               ) : (
                 <p className="text-xs text-amber-400 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
