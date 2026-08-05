@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { useState, useCallback, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -12,15 +12,18 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
-  DollarSign,
-  Award,
-  Activity,
-  ArrowUpRight,
-  ArrowDownRight,
-  AlertCircle
+  ChevronDown,
+  AlertCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
+  TrendingUp,
+  TrendingDown,
+  CheckCircle2,
+  Layers
 } from 'lucide-react'
 import { TradeListItem } from '@/components/shared/trade-list-item'
 import { TradeFilter, FilterState } from '@/components/shared/trade-filter'
+import { CompoundingTrackerPanel } from '@/components/shared/compounding-tracker-panel'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Trade } from '@/types/trade'
@@ -105,6 +108,8 @@ const monthNames = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ]
 
+const LOCAL_STORAGE_COLLAPSE_KEY = 'trading_journal_left_panel_collapsed'
+
 function TradesPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -118,18 +123,54 @@ function TradesPageContent() {
   }))
   const [page, setPage] = useState(1)
 
+  // Split-Pane Collapsible State with LocalStorage Persistence
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false)
+
+  // Accordion State per Date (e.g. { "Selasa, 4 Agustus 2026": true })
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
+
+  // Per-date pagination state for accordion (>15 items)
+  const [visibleItemCounts, setVisibleItemCounts] = useState<Record<string, number>>({})
+
   // Calendar State
   const today = new Date()
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
 
-  React.useEffect(() => {
+  // Load localStorage collapse preference on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_COLLAPSE_KEY)
+      if (saved !== null) {
+        setIsLeftPanelCollapsed(saved === 'true')
+      } else {
+        // Default collapse on mobile (<1024px)
+        setIsLeftPanelCollapsed(window.innerWidth < 1024)
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [])
+
+  const toggleLeftPanel = () => {
+    setIsLeftPanelCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(LOCAL_STORAGE_COLLAPSE_KEY, String(next))
+      } catch {
+        // Ignore localStorage errors
+      }
+      return next
+    })
+  }
+
+  useEffect(() => {
     if (dateParam) {
       setFilters((prev) => ({ ...prev, date: dateParam }))
     }
   }, [dateParam])
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (viewParam && (viewParam === 'list' || viewParam === 'calendar')) {
       setActiveView(viewParam)
     }
@@ -140,6 +181,25 @@ function TradesPageContent() {
     queryFn:  () => fetchTrades(filters, page),
     staleTime: 30_000,
   })
+
+  // Fetch balance for compounding tracker
+  const { data: mt5ConnData } = useQuery({
+    queryKey: ['mt5-connections-summary'],
+    queryFn: async () => {
+      const res = await fetch('/api/mt5/connections')
+      if (!res.ok) return null
+      return res.json()
+    },
+    staleTime: 60_000,
+  })
+
+  const currentBalance = useMemo(() => {
+    if (mt5ConnData?.connections && mt5ConnData.connections.length > 0) {
+      const activeConn = mt5ConnData.connections.find((c: any) => c.status === 'connected') || mt5ConnData.connections[0]
+      if (activeConn?.balance) return Number(activeConn.balance)
+    }
+    return 1000
+  }, [mt5ConnData])
 
   const trades = data?.trades ?? []
   const total  = data?.total ?? 0
@@ -184,9 +244,18 @@ function TradesPageContent() {
     }
   }, [filteredTrades])
 
-  // Group trades by Date String (e.g. "3 Agustus 2026")
+  // Group trades by Date String (Accordion Grouping)
   const groupedTrades = useMemo(() => {
-    const groups: Array<{ dateLabel: string; items: Trade[] }> = []
+    const groups: Array<{
+      dateLabel: string
+      items: Trade[]
+      closedItems: Trade[]
+      totalPnl: number
+      wins: number
+      losses: number
+      netStatus: 'profit' | 'loss' | 'even'
+    }> = []
+
     const map = new Map<string, Trade[]>()
 
     filteredTrades.forEach((t) => {
@@ -205,13 +274,54 @@ function TradesPageContent() {
     })
 
     map.forEach((items, dateLabel) => {
-      groups.push({ dateLabel, items })
+      const closedItems = items.filter((t) => t.status === 'closed')
+      const totalPnl = closedItems.reduce((acc, t) => acc + (t.pnl || 0), 0)
+      const wins = closedItems.filter((t) => (t.pnl || 0) > 0).length
+      const losses = closedItems.filter((t) => (t.pnl || 0) < 0).length
+      const netStatus = totalPnl > 0 ? 'profit' : totalPnl < 0 ? 'loss' : 'even'
+
+      groups.push({
+        dateLabel,
+        items,
+        closedItems,
+        totalPnl,
+        wins,
+        losses,
+        netStatus,
+      })
     })
 
     return groups
   }, [filteredTrades])
 
-  // Calendar month data fetcher (fetches ALL days in month regardless of pagination)
+  // Set default accordion expanded state for the most recent date group
+  useEffect(() => {
+    if (groupedTrades.length > 0) {
+      setExpandedDates((prev) => {
+        // If state already has entries, preserve them; otherwise expand the first date (latest)
+        if (Object.keys(prev).length === 0) {
+          return { [groupedTrades[0].dateLabel]: true }
+        }
+        return prev
+      })
+    }
+  }, [groupedTrades])
+
+  const toggleAccordionDate = (dateLabel: string) => {
+    setExpandedDates((prev) => ({
+      ...prev,
+      [dateLabel]: !prev[dateLabel],
+    }))
+  }
+
+  const handleShowMoreItems = (dateLabel: string) => {
+    setVisibleItemCounts((prev) => ({
+      ...prev,
+      [dateLabel]: (prev[dateLabel] || 15) + 15,
+    }))
+  }
+
+  // Calendar month data fetcher
   const { data: calendarMonthData } = useQuery({
     queryKey: ['trades-calendar-month', currentYear, currentMonth],
     queryFn: async () => {
@@ -254,7 +364,7 @@ function TradesPageContent() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-[1600px] mx-auto px-2 sm:px-4">
       {/* Header & View Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
         <div>
@@ -263,7 +373,7 @@ function TradesPageContent() {
               Jurnal Trading
             </h1>
 
-            {/* Requirement 4: Clickable "X Belum Diisi" CTA Badge */}
+            {/* Incomplete Journal Badge */}
             {incompleteCount > 0 && (
               <button
                 type="button"
@@ -282,7 +392,7 @@ function TradesPageContent() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Requirement 2: Linear/Notion Style View Switcher Toggle */}
+          {/* List View / Calendar View Switcher */}
           <div className="bg-card border border-border p-1 rounded-xl flex items-center shadow-sm">
             <button
               type="button"
@@ -324,14 +434,14 @@ function TradesPageContent() {
         </div>
       </div>
 
-      {/* Requirement 3: Refined Filter Component */}
+      {/* Filter Component */}
       <TradeFilter
         filters={filters}
         onFilterChange={handleFilterChange}
         onReset={() => { setFilters(initialFilterState); setPage(1) }}
       />
 
-      {/* Requirement 5: Mini Summary Bar (Contextual Filter Aggregates) */}
+      {/* Contextual Mini Summary Bar */}
       {!isLoading && filteredTrades.length > 0 && (
         <div className="bg-card/70 border border-border/80 rounded-2xl p-3.5 px-5 shadow-sm backdrop-blur-sm flex flex-wrap items-center justify-between gap-4 text-xs">
           <div className="flex items-center gap-6 flex-wrap">
@@ -380,59 +490,175 @@ function TradesPageContent() {
         </div>
       )}
 
-      {/* VIEW 1: LIST VIEW (Requirement 6 - Grouping by Date Header & Infinite Scroll/Pagination) */}
+      {/* VIEW 1: LIST VIEW (Requirement 1 & 2 & 3: SPLIT-PANE LAYOUT) */}
       {activeView === 'list' && !isLoading && !isError && filteredTrades.length > 0 && (
-        <div className="space-y-6">
-          {groupedTrades.map((group) => (
-            <div key={group.dateLabel} className="space-y-2.5">
-              {/* Date Group Header */}
-              <div className="flex items-center gap-3 pt-2">
-                <span className="text-xs font-bold text-muted-foreground font-mono uppercase tracking-wider">
-                  📅 {group.dateLabel}
-                </span>
-                <div className="flex-1 h-px bg-border/60" />
-                <span className="text-[10px] text-muted-foreground font-semibold">
-                  {group.items.length} Trade
-                </span>
-              </div>
+        <div className="relative">
+          {/* Top Bar Split-Pane Toggle Button */}
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={toggleLeftPanel}
+              className="inline-flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-card border border-border px-3 py-1.5 rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              {isLeftPanelCollapsed ? (
+                <>
+                  <PanelLeftOpen className="h-4 w-4 text-amber-400" />
+                  <span>Buka Compounding Tracker</span>
+                </>
+              ) : (
+                <>
+                  <PanelLeftClose className="h-4 w-4 text-amber-400" />
+                  <span>Sembunyikan Panel Tracker</span>
+                </>
+              )}
+            </button>
 
-              {/* Trade Items */}
-              <div className="space-y-2.5">
-                {group.items.map((trade) => (
-                  <TradeListItem key={trade.id} trade={trade} />
-                ))}
-              </div>
-            </div>
-          ))}
+            <span className="text-[11px] text-muted-foreground font-mono">
+              Mode Split-Pane: {isLeftPanelCollapsed ? '1 Kolom (Penuh)' : '2 Kolom (Compounding + List)'}
+            </span>
+          </div>
 
-          {/* Pagination */}
-          {total > 50 && (
-            <div className="flex justify-center items-center gap-3 pt-4 border-t border-border/60">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                ← Sebelumnya
-              </Button>
-              <span className="text-xs text-muted-foreground font-mono font-semibold">
-                Halaman {page} dari {Math.ceil(total / 50)}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= Math.ceil(total / 50)}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Berikutnya →
-              </Button>
+          {/* SPLIT-PANE CONTAINER */}
+          <div className="flex flex-col lg:flex-row gap-5 items-start">
+            {/* PANEL KIRI: COMPOUNDING TRACKER */}
+            {!isLeftPanelCollapsed && (
+              <div className="w-full lg:w-[330px] xl:w-[370px] shrink-0 sticky top-20 z-10 transition-all duration-300">
+                <CompoundingTrackerPanel currentBalance={currentBalance} />
+              </div>
+            )}
+
+            {/* PANEL KANAN: DAILY ACCORDION TRADE LIST */}
+            <div className="flex-1 min-w-0 w-full space-y-4">
+              {groupedTrades.map((group) => {
+                const isExpanded = expandedDates[group.dateLabel] ?? false
+                const visibleCount = visibleItemCounts[group.dateLabel] || 15
+                const itemsToRender = group.items.slice(0, visibleCount)
+                const hasMore = group.items.length > visibleCount
+
+                return (
+                  <div
+                    key={group.dateLabel}
+                    className="bg-card/90 border border-border/80 rounded-2xl overflow-hidden shadow-sm transition-all"
+                  >
+                    {/* ACCORDION HEADER WITH DAILY SUMMARY */}
+                    <div
+                      onClick={() => toggleAccordionDate(group.dateLabel)}
+                      className={cn(
+                        'p-4 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none transition-colors border-b border-transparent',
+                        isExpanded ? 'bg-muted/30 border-border/60' : 'hover:bg-muted/20'
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-7 w-7 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-amber-400" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-extrabold text-foreground tracking-tight">
+                              📅 {group.dateLabel}
+                            </span>
+                            <span className="text-xs font-mono font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border/40">
+                              {group.items.length} Trade
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 mt-0.5 text-xs">
+                            <span className="text-muted-foreground font-semibold">Tally:</span>
+                            <span className="font-mono text-emerald-400 font-bold">{group.wins}W</span>
+                            <span className="text-muted-foreground">/</span>
+                            <span className="font-mono text-destructive font-bold">{group.losses}L</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Daily Net PnL Summary */}
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Total PnL Harian</span>
+                          <span className={`font-mono text-sm font-extrabold ${group.totalPnl >= 0 ? 'text-emerald-400' : 'text-destructive'}`}>
+                            {group.totalPnl >= 0 ? '+' : ''}${group.totalPnl.toFixed(2)}
+                          </span>
+                        </div>
+
+                        <span
+                          className={cn(
+                            'text-[10px] font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wider',
+                            group.netStatus === 'profit'
+                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                              : group.netStatus === 'loss'
+                              ? 'bg-destructive/15 text-destructive border-destructive/30'
+                              : 'bg-muted text-muted-foreground border-border'
+                          )}
+                        >
+                          Net: {group.netStatus}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* ACCORDION BODY: TRADE ITEMS */}
+                    {isExpanded && (
+                      <div className="p-3.5 space-y-2.5 bg-background/40">
+                        {itemsToRender.map((trade) => (
+                          <TradeListItem key={trade.id} trade={trade} />
+                        ))}
+
+                        {/* Pagination / "Muat Lebih Banyak" per day (>15 trades) */}
+                        {hasMore && (
+                          <div className="text-center pt-2 pb-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleShowMoreItems(group.dateLabel)
+                              }}
+                              className="text-xs font-bold text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                            >
+                              Muat 15 Trade Lagi ({group.items.length - visibleCount} tersisa)
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* Main List Pagination */}
+              {total > 50 && (
+                <div className="flex justify-center items-center gap-3 pt-4 border-t border-border/60">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    ← Sebelumnya
+                  </Button>
+                  <span className="text-xs text-muted-foreground font-mono font-semibold">
+                    Halaman {page} dari {Math.ceil(total / 50)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= Math.ceil(total / 50)}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Berikutnya →
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
 
-      {/* VIEW 2: CALENDAR VIEW (Requirement 7 - Integrated Calendar View with Click Date Filter) */}
+      {/* VIEW 2: CALENDAR VIEW (UNTOUCHED) */}
       {activeView === 'calendar' && !isLoading && (
         <div className="bg-card border border-border rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between border-b border-border pb-4">
