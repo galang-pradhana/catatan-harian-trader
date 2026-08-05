@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
   Calculator,
@@ -13,259 +14,681 @@ import {
   ShieldCheck,
   Target,
   Sliders,
-  DollarSign
+  DollarSign,
+  FileText,
+  Edit3,
+  Loader2,
+  RefreshCw,
+  ExternalLink,
+  Crown,
+  Calendar,
+  Sparkles,
+  Save,
+  X
 } from 'lucide-react'
+import { CompoundingRoadmap, RoadmapLevelNode } from '@/components/shared/compounding-roadmap'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+
+interface PlanDetail {
+  id: string
+  name: string
+  source: string
+  initialModal: number
+  isManualModal: boolean
+  profitPlanPercent: number
+  riskPlanPercent: number
+  pipRisk: number
+  pipValue: number
+  goalLevelTarget: number
+  rulesNotes: string
+  isActive: boolean
+  isArchived: boolean
+  status: string
+  createdAt: string
+  currentActiveLevel: number
+  currentBalance: number
+}
 
 interface LevelRow {
+  id: string
   level: number
   targetPlan: number
   assetPlan: number
   idealLot: number
   riskAmount: number
   isAchieved: boolean
-}
-
-// Generate sample level data using the exact formula from PRD Section 0
-function generateLevels(initialModal: number, profitPct: number, riskPct: number, pipRisk: number, pipValue: number, total: number = 100): LevelRow[] {
-  const levels: LevelRow[] = []
-  let currentBalance = initialModal
-
-  for (let i = 1; i <= total; i++) {
-    // Target = FLOOR(Balance * Profit%, 10)
-    const rawTarget = currentBalance * (profitPct / 100)
-    const targetPlan = Math.floor(rawTarget / 10) * 10
-
-    // Risk = FLOOR(Balance * Risk%, 5)
-    const rawRisk = currentBalance * (riskPct / 100)
-    const riskAmount = Math.floor(rawRisk / 5) * 5
-
-    // Ideal Lot = Risk / (Pip Risk * Pip Value)
-    const idealLot = parseFloat((riskAmount / (pipRisk * pipValue)).toFixed(2))
-
-    // Asset Plan = Balance + Target Plan
-    const assetPlan = currentBalance + targetPlan
-
-    levels.push({
-      level: i,
-      targetPlan,
-      assetPlan,
-      idealLot,
-      riskAmount,
-      isAchieved: i <= 2 // Levels 1 & 2 achieved in dummy state
-    })
-
-    currentBalance = assetPlan
-  }
-  return levels
+  manualOverride: boolean
+  achievedAt: string | null
 }
 
 export default function CompoundingDetailPage() {
   const params = useParams()
+  const router = useRouter()
+  const queryClient = useQueryClient()
   const planId = params.id as string
 
-  const planInfo = {
-    id: planId,
-    name: 'Plan Akun Utama Forex (Risk 1.25%)',
-    source: 'MT5 #4056802543 (Exness)',
-    initialModal: 17031,
-    profitPlanPercent: 2.5,
-    riskPlanPercent: 1.25,
-    pipRisk: 50,
-    pipValue: 10,
-    currentActiveLevel: 3,
+  const [selectedLevel, setSelectedLevel] = useState<number | null>(null)
+  const [isEditingRules, setIsEditingRules] = useState(false)
+  const [rulesDraft, setRulesDraft] = useState('')
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+
+  // Edit Plan Form State
+  const [editName, setEditName] = useState('')
+  const [editProfit, setEditProfit] = useState('')
+  const [editRisk, setEditRisk] = useState('')
+  const [editPipRisk, setEditPipRisk] = useState('')
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['compounding-plan-detail', planId],
+    queryFn: async () => {
+      const res = await fetch(`/api/compounding/${planId}`)
+      if (!res.ok) throw new Error('Gagal memuat detail plan compounding')
+      return res.json() as Promise<{ success: boolean; plan: PlanDetail; levels: LevelRow[] }>
+    },
+    staleTime: 15_000,
+  })
+
+  const plan = data?.plan
+  const levels = data?.levels || []
+
+  // Initialize edit forms when plan data arrives
+  React.useEffect(() => {
+    if (plan) {
+      setRulesDraft(plan.rulesNotes || '')
+      setEditName(plan.name)
+      setEditProfit(String(plan.profitPlanPercent))
+      setEditRisk(String(plan.riskPlanPercent))
+      setEditPipRisk(String(plan.pipRisk))
+    }
+  }, [plan])
+
+  // Mutation: Toggle level achievement manually
+  const toggleLevelMutation = useMutation({
+    mutationFn: async ({ levelNumber, isAchieved }: { levelNumber: number; isAchieved: boolean }) => {
+      const res = await fetch(`/api/compounding/${planId}/levels`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level_number: levelNumber, is_achieved: isAchieved }),
+      })
+      if (!res.ok) throw new Error('Gagal memperbarui status level')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['compounding-plan-detail', planId] })
+      queryClient.invalidateQueries({ queryKey: ['compounding-plans-list'] })
+    },
+  })
+
+  // Mutation: Save Rules Notes
+  const saveRulesMutation = useMutation({
+    mutationFn: async (newRules: string) => {
+      const res = await fetch(`/api/compounding/${planId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rules_notes: newRules }),
+      })
+      if (!res.ok) throw new Error('Gagal menyimpan aturan trading')
+      return res.json()
+    },
+    onSuccess: () => {
+      setIsEditingRules(false)
+      queryClient.invalidateQueries({ queryKey: ['compounding-plan-detail', planId] })
+    },
+  })
+
+  // Mutation: Save Plan Parameters (Edit Modal)
+  const savePlanMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/compounding/${planId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName,
+          profit_plan_percent: parseFloat(editProfit),
+          risk_plan_percent: parseFloat(editRisk),
+          pip_risk: parseFloat(editPipRisk),
+          rules_notes: rulesDraft
+        }),
+      })
+      if (!res.ok) throw new Error('Gagal memperbarui plan compounding')
+      return res.json()
+    },
+    onSuccess: () => {
+      setIsEditModalOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['compounding-plan-detail', planId] })
+      queryClient.invalidateQueries({ queryKey: ['compounding-plans-list'] })
+    },
+  })
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-16 text-muted-foreground text-xs gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+        <span>Memuat detail plan compounding &amp; peta jalan...</span>
+      </div>
+    )
   }
 
-  const [levels] = useState<LevelRow[]>(() =>
-    generateLevels(
-      planInfo.initialModal,
-      planInfo.profitPlanPercent,
-      planInfo.riskPlanPercent,
-      planInfo.pipRisk,
-      planInfo.pipValue,
-      100
+  if (isError || !plan) {
+    return (
+      <div className="bg-card border border-destructive/30 rounded-2xl p-8 text-center space-y-4 max-w-lg mx-auto my-8">
+        <p className="text-sm text-destructive font-medium">Gagal memuat detail plan compounding</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Coba Lagi
+        </Button>
+      </div>
     )
-  )
+  }
 
-  const activeLevelItem = levels.find((l) => l.level === planInfo.currentActiveLevel) || levels[0]
+  const activeLevelItem = levels.find((l) => l.level === plan.currentActiveLevel) || levels[0] || {
+    level: 1,
+    targetPlan: 25,
+    assetPlan: plan.initialModal * 1.025,
+    idealLot: 0.05,
+    riskAmount: 12.5,
+    isAchieved: false,
+    manualOverride: false,
+    achievedAt: null
+  }
+
+  // Calculate progress % towards next level target
+  const startModal = activeLevelItem.assetPlan - activeLevelItem.targetPlan
+  const targetAsset = activeLevelItem.assetPlan
+  const range = targetAsset - startModal
+  const progressPercent = range > 0 ? Math.min(Math.max(((plan.currentBalance - startModal) / range) * 100, 0), 100) : 0
+
+  const handleSelectLevelFromRoadmap = (lvlNum: number) => {
+    setSelectedLevel(lvlNum)
+    const el = document.getElementById(`level-row-${lvlNum}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Back Button & Title */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/compounding"
-          className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div>
-          <h1 className="text-xl font-bold text-foreground">{planInfo.name}</h1>
-          <p className="text-xs text-muted-foreground">{planInfo.source}</p>
-        </div>
-      </div>
-
-      {/* Sticky Summary Progress Bar */}
-      <div className="sticky top-16 z-20 bg-card/95 backdrop-blur-md border border-amber-500/30 rounded-2xl p-4 shadow-lg flex items-center justify-between">
+    <div className="space-y-6 pb-12 max-w-7xl mx-auto px-2 sm:px-4">
+      {/* Header & Navigation */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 font-extrabold text-sm">
-            L{planInfo.currentActiveLevel}
-          </div>
+          <Link
+            href="/compounding"
+            className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
           <div>
-            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">
-              Level Aktif Saat Ini
-            </span>
-            <span className="text-xs font-bold text-foreground">
-              Rekomendasi Lot: <span className="text-amber-400 font-mono text-sm">{activeLevelItem.idealLot} Lot</span>
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-extrabold text-foreground tracking-tight">{plan.name}</h1>
+              {plan.isActive && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-black shadow-sm flex items-center gap-1">
+                  <Crown className="h-3 w-3" />
+                  <span>Plan Utama Aktif</span>
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Sumber Modal: <span className="font-semibold text-foreground font-mono">{plan.source}</span>
+            </p>
           </div>
         </div>
 
-        <div className="text-right">
-          <span className="text-[10px] text-muted-foreground block">Target Asset Level Ini</span>
-          <span className="text-sm font-extrabold text-emerald-500 font-mono">
-            ${activeLevelItem.assetPlan.toLocaleString()}
-          </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsEditModalOpen(true)}
+            className="text-xs font-bold gap-1.5"
+          >
+            <Edit3 className="h-3.5 w-3.5 text-amber-400" />
+            <span>Edit Parameter &amp; Rules</span>
+          </Button>
+
+          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       </div>
 
-      {/* MOBILE VIEW: Stacked Cards (Viewport < 768px) */}
-      <div className="block md:hidden space-y-3">
-        <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-          Peta Jalan Level Compounding (Card Stack View)
-        </h2>
+      {/* REQUIREMENT 1: VISUAL ROADMAP STEPPER */}
+      <CompoundingRoadmap
+        levels={levels as RoadmapLevelNode[]}
+        currentActiveLevel={plan.currentActiveLevel}
+        onSelectLevel={handleSelectLevelFromRoadmap}
+        selectedLevel={selectedLevel}
+      />
 
-        {levels.slice(0, 30).map((item) => {
-          const isActive = item.level === planInfo.currentActiveLevel
-          return (
-            <div
-              key={item.level}
-              className={`p-4 rounded-2xl border transition-all space-y-3 ${
-                isActive
-                  ? 'bg-amber-500/10 border-amber-500 shadow-md shadow-amber-500/10'
-                  : item.isAchieved
-                  ? 'bg-card/60 border-emerald-500/30'
-                  : 'bg-card border-border'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-lg ${
-                      isActive
-                        ? 'bg-amber-500 text-black'
-                        : item.isAchieved
-                        ? 'bg-emerald-500/15 text-emerald-400'
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    Level {item.level}
-                  </span>
-                  {isActive && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40">
-                      Aktif
-                    </span>
-                  )}
-                  {item.isAchieved && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Tercapai
-                    </span>
-                  )}
-                </div>
-
-                <div className="text-right">
-                  <span className="text-[10px] text-muted-foreground block">Ideal Lot</span>
-                  <span className="font-mono text-xs font-extrabold text-amber-400">
-                    {item.idealLot} Lot
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/50 text-xs">
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">Target Plan</span>
-                  <span className="font-mono font-semibold text-emerald-500">
-                    +${item.targetPlan}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">Batasan Risk</span>
-                  <span className="font-mono font-semibold text-destructive">
-                    -${item.riskAmount}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">Asset Plan</span>
-                  <span className="font-mono font-bold text-foreground">
-                    ${item.assetPlan.toLocaleString()}
-                  </span>
-                </div>
+      {/* REQUIREMENT 3: STICKY SUMMARY & PROGRESS BAR */}
+      <div className="bg-card/95 backdrop-blur-md border border-amber-500/30 rounded-2xl p-5 shadow-lg space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-lg font-mono">
+              L{plan.currentActiveLevel}
+            </div>
+            <div>
+              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">
+                Level Aktif saat ini
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-black text-foreground font-mono">
+                  ${plan.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-xs text-muted-foreground font-sans">
+                  (Modal Awal: ${plan.initialModal.toLocaleString()})
+                </span>
               </div>
             </div>
-          )
-        })}
+          </div>
+
+          <div className="flex items-center gap-6">
+            <div>
+              <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Rekomendasi Position Size</span>
+              <span className="text-sm font-extrabold text-amber-400 font-mono bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-xl inline-block">
+                {activeLevelItem.idealLot} Lot
+              </span>
+            </div>
+
+            <div className="text-right">
+              <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Target Asset Level Ini</span>
+              <span className="text-sm font-extrabold text-emerald-400 font-mono">
+                ${activeLevelItem.assetPlan.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Bar Balance vs Target Level */}
+        <div className="space-y-1.5 pt-2 border-t border-border/50">
+          <div className="flex justify-between items-center text-xs font-semibold">
+            <span className="text-muted-foreground font-mono">
+              💰 ${plan.currentBalance.toLocaleString()} dari target ${activeLevelItem.assetPlan.toLocaleString()}
+            </span>
+            <span className="font-mono text-amber-400 font-bold">
+              {progressPercent.toFixed(1)}% menuju Level {plan.currentActiveLevel + 1}
+            </span>
+          </div>
+
+          <div className="h-2.5 w-full bg-muted/60 rounded-full overflow-hidden p-0.5 border border-border/40">
+            <div
+              className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-emerald-400 rounded-full transition-all duration-500"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* DESKTOP VIEW: Data Table (Viewport >= 768px) */}
-      <div className="hidden md:block bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-muted/40 text-muted-foreground border-b border-border font-semibold">
-            <tr>
-              <th className="py-3.5 px-4">Level</th>
-              <th className="py-3.5 px-4">Target Plan (+2.5%)</th>
-              <th className="py-3.5 px-4">Risk Amount (-1.25%)</th>
-              <th className="py-3.5 px-4">Ideal Position Size</th>
-              <th className="py-3.5 px-4">Asset Plan (Running Balance)</th>
-              <th className="py-3.5 px-4 text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/60">
-            {levels.slice(0, 50).map((item) => {
-              const isActive = item.level === planInfo.currentActiveLevel
-              return (
-                <tr
-                  key={item.level}
-                  className={`transition-colors ${
-                    isActive
-                      ? 'bg-amber-500/10 font-bold border-l-4 border-l-amber-500'
-                      : 'hover:bg-muted/20'
-                  }`}
-                >
-                  <td className="py-3 px-4 font-mono font-bold">
-                    Level {item.level}
-                  </td>
-                  <td className="py-3 px-4 text-emerald-500 font-mono">
-                    +${item.targetPlan}
-                  </td>
-                  <td className="py-3 px-4 text-destructive font-mono">
-                    -${item.riskAmount}
-                  </td>
-                  <td className="py-3 px-4 text-amber-400 font-mono font-bold">
-                    {item.idealLot} Lot
-                  </td>
-                  <td className="py-3 px-4 font-mono text-foreground font-bold">
-                    ${item.assetPlan.toLocaleString()}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    {item.isAchieved ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                        <CheckCircle2 className="h-3 w-3" /> Tercapai
-                      </span>
-                    ) : isActive ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+      {/* REQUIREMENT 2: SECTION "CATATAN & ATURAN TRADING" */}
+      <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-amber-400" />
+            <h2 className="text-xs font-extrabold text-foreground uppercase tracking-wider">
+              Catatan &amp; Aturan Trading Pribadi (Rules)
+            </h2>
+          </div>
+
+          {!isEditingRules ? (
+            <button
+              type="button"
+              onClick={() => setIsEditingRules(true)}
+              className="text-xs text-amber-400 hover:underline font-bold inline-flex items-center gap-1 cursor-pointer"
+            >
+              <Edit3 className="h-3.5 w-3.5" /> Edit Rules
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditingRules(false)}
+                className="text-xs"
+              >
+                Batal
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={saveRulesMutation.isPending}
+                onClick={() => saveRulesMutation.mutate(rulesDraft)}
+                className="bg-amber-500 text-black hover:bg-amber-600 text-xs font-bold gap-1"
+              >
+                {saveRulesMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                <span>Simpan Rules</span>
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {isEditingRules ? (
+          <textarea
+            rows={4}
+            value={rulesDraft}
+            onChange={(e) => setRulesDraft(e.target.value)}
+            className="w-full px-4 py-3 bg-muted/30 border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500 font-sans"
+            placeholder="Tuliskan aturan compounding pribadi Anda di sini..."
+          />
+        ) : (
+          <div className="p-3.5 rounded-xl bg-muted/20 border border-border/50 text-xs text-foreground leading-relaxed whitespace-pre-line font-sans">
+            {plan.rulesNotes ? (
+              plan.rulesNotes
+            ) : (
+              <span className="text-muted-foreground italic">
+                Belum ada aturan trading ditambahkan. Klik &quot;Edit Rules&quot; untuk mencatat aturan disiplin Anda.
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* DATA TABLE & CARDS FOR compounding_levels */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            Detail Rincian Level Compounding ({levels.length} Level)
+          </h2>
+          <span className="text-[11px] text-muted-foreground">
+            💡 Centang checkbox untuk Override Manual status Tercapai
+          </span>
+        </div>
+
+        {/* MOBILE VIEW: Stacked Level Cards (<768px) */}
+        <div className="block md:hidden space-y-3">
+          {levels.slice(0, 50).map((item) => {
+            const isActive = item.level === plan.currentActiveLevel
+            const isSelected = selectedLevel === item.level
+
+            return (
+              <div
+                id={`level-row-${item.level}`}
+                key={item.level}
+                className={cn(
+                  'p-4 rounded-2xl border transition-all space-y-3',
+                  isActive
+                    ? 'bg-amber-500/10 border-amber-500 shadow-md shadow-amber-500/10 ring-2 ring-amber-500/30'
+                    : item.isAchieved
+                    ? 'bg-card/60 border-emerald-500/30'
+                    : 'bg-card border-border',
+                  isSelected && !isActive && 'ring-2 ring-primary'
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {/* Manual Override Checkbox */}
+                    <input
+                      type="checkbox"
+                      checked={item.isAchieved}
+                      onChange={(e) =>
+                        toggleLevelMutation.mutate({
+                          levelNumber: item.level,
+                          isAchieved: e.target.checked
+                        })
+                      }
+                      className="h-4 w-4 rounded accent-amber-500 cursor-pointer"
+                      title="Override Manual Status Level"
+                    />
+
+                    <span
+                      className={cn(
+                        'font-mono text-xs font-extrabold px-2.5 py-1 rounded-lg',
+                        isActive
+                          ? 'bg-amber-500 text-black'
+                          : item.isAchieved
+                          ? 'bg-emerald-500/15 text-emerald-400'
+                          : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      Level {item.level}
+                    </span>
+
+                    {isActive && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40">
                         Aktif
                       </span>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">Belum</span>
                     )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] text-muted-foreground block">Ideal Lot</span>
+                    <span className="font-mono text-xs font-extrabold text-amber-400">
+                      {item.idealLot} Lot
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/50 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Target Plan</span>
+                    <span className="font-mono font-semibold text-emerald-400">
+                      +${item.targetPlan}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Batasan Risk</span>
+                    <span className="font-mono font-semibold text-destructive">
+                      -${item.riskAmount}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Asset Plan</span>
+                    <span className="font-mono font-bold text-foreground">
+                      ${item.assetPlan.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {item.achievedAt && (
+                  <div className="text-[10px] text-emerald-400/90 font-mono pt-1">
+                    ✓ Tercapai pada {new Date(item.achievedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* DESKTOP VIEW: Data Table (>=768px) */}
+        <div className="hidden md:block bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-muted/40 text-muted-foreground border-b border-border font-semibold">
+              <tr>
+                <th className="py-3.5 px-4 text-center w-12">Check</th>
+                <th className="py-3.5 px-4">Level</th>
+                <th className="py-3.5 px-4">Target Plan (+{plan.profitPlanPercent}%)</th>
+                <th className="py-3.5 px-4">Risk Amount (-{plan.riskPlanPercent}%)</th>
+                <th className="py-3.5 px-4">Ideal Position Size</th>
+                <th className="py-3.5 px-4">Asset Plan (Running Balance)</th>
+                <th className="py-3.5 px-4 text-center">Status &amp; Timestamp</th>
+                <th className="py-3.5 px-4 text-center">Trade History</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {levels.slice(0, 50).map((item) => {
+                const isActive = item.level === plan.currentActiveLevel
+                const isSelected = selectedLevel === item.level
+
+                return (
+                  <tr
+                    id={`level-row-${item.level}`}
+                    key={item.level}
+                    className={cn(
+                      'transition-colors',
+                      isActive
+                        ? 'bg-amber-500/15 font-bold border-l-4 border-l-amber-500'
+                        : item.isAchieved
+                        ? 'bg-emerald-500/5 hover:bg-emerald-500/10'
+                        : 'hover:bg-muted/20',
+                      isSelected && !isActive && 'bg-primary/10'
+                    )}
+                  >
+                    {/* Manual Override Checkbox */}
+                    <td className="py-3 px-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={item.isAchieved}
+                        onChange={(e) =>
+                          toggleLevelMutation.mutate({
+                            levelNumber: item.level,
+                            isAchieved: e.target.checked
+                          })
+                        }
+                        className="h-4 w-4 rounded accent-amber-500 cursor-pointer"
+                        title="Klik untuk Override Manual Status Tercapai"
+                      />
+                    </td>
+
+                    <td className="py-3 px-4 font-mono font-bold">
+                      Level {item.level}
+                    </td>
+
+                    <td className="py-3 px-4 text-emerald-400 font-mono font-bold">
+                      +${item.targetPlan}
+                    </td>
+
+                    <td className="py-3 px-4 text-destructive font-mono font-semibold">
+                      -${item.riskAmount}
+                    </td>
+
+                    <td className="py-3 px-4 text-amber-400 font-mono font-extrabold">
+                      {item.idealLot} Lot
+                    </td>
+
+                    <td className="py-3 px-4 font-mono text-foreground font-bold">
+                      ${item.assetPlan.toLocaleString()}
+                    </td>
+
+                    <td className="py-3 px-4 text-center">
+                      {item.isAchieved ? (
+                        <div className="space-y-0.5">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            <CheckCircle2 className="h-3 w-3" /> Tercapai
+                          </span>
+                          {item.achievedAt && (
+                            <span className="text-[10px] text-muted-foreground block font-mono">
+                              {new Date(item.achievedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          )}
+                        </div>
+                      ) : isActive ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          Aktif
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">Belum</span>
+                      )}
+                    </td>
+
+                    {/* Trade Connection CTA */}
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => router.push('/trades')}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-muted-foreground hover:text-amber-400 transition-colors cursor-pointer"
+                        title="Lihat trade pada periode level ini"
+                      >
+                        <span>Trade Journal</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      {/* EDIT PLAN MODAL */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-3xl p-6 max-w-lg w-full space-y-5 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Edit3 className="h-5 w-5 text-amber-500" />
+                <span>Edit Parameter &amp; Aturan Plan</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-foreground">Nama Plan</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-muted/30 border border-border rounded-xl text-foreground focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-foreground">Profit Target (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={editProfit}
+                    onChange={(e) => setEditProfit(e.target.value)}
+                    className="w-full px-3 py-2 bg-muted/30 border border-border rounded-xl text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-foreground">Risk (%)</label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    value={editRisk}
+                    onChange={(e) => setEditRisk(e.target.value)}
+                    className="w-full px-3 py-2 bg-muted/30 border border-border rounded-xl text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-foreground">SL (Pips)</label>
+                  <input
+                    type="number"
+                    value={editPipRisk}
+                    onChange={(e) => setEditPipRisk(e.target.value)}
+                    className="w-full px-3 py-2 bg-muted/30 border border-border rounded-xl text-foreground focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-foreground">Catatan &amp; Aturan Trading</label>
+                <textarea
+                  rows={3}
+                  value={rulesDraft}
+                  onChange={(e) => setRulesDraft(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-muted/30 border border-border rounded-xl text-foreground focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+              <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(false)}>
+                Batal
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={savePlanMutation.isPending}
+                onClick={() => savePlanMutation.mutate()}
+                className="bg-amber-500 text-black hover:bg-amber-600 font-bold gap-1.5"
+              >
+                {savePlanMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                <span>Simpan Perubahan</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
