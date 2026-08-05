@@ -24,7 +24,9 @@ import {
   Calendar,
   Sparkles,
   Save,
-  X
+  X,
+  RotateCcw,
+  Zap
 } from 'lucide-react'
 import { CompoundingRoadmap, RoadmapLevelNode } from '@/components/shared/compounding-roadmap'
 import { Button } from '@/components/ui/button'
@@ -137,6 +139,23 @@ export default function CompoundingDetailPage() {
     },
   })
 
+  // Mutation: Reset Baseline Modal to Current Balance
+  const resetBaselineMutation = useMutation({
+    mutationFn: async (newModal: number) => {
+      const res = await fetch(`/api/compounding/${planId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initial_modal: newModal }),
+      })
+      if (!res.ok) throw new Error('Gagal menyesuaikan saldo baseline modal')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['compounding-plan-detail', planId] })
+      queryClient.invalidateQueries({ queryKey: ['compounding-plans-list'] })
+    },
+  })
+
   // Mutation: Save Plan Parameters (Edit Modal)
   const savePlanMutation = useMutation({
     mutationFn: async () => {
@@ -181,22 +200,15 @@ export default function CompoundingDetailPage() {
     )
   }
 
-  const activeLevelItem = levels.find((l) => l.level === plan.currentActiveLevel) || levels[0] || {
-    level: 1,
-    targetPlan: 25,
-    assetPlan: plan.initialModal * 1.025,
-    idealLot: 0.05,
-    riskAmount: 12.5,
-    isAchieved: false,
-    manualOverride: false,
-    achievedAt: null
-  }
+  // DYNAMIC DEDICATED REALTIME CALCULATIONS based on active balance
+  const currentBal = plan.currentBalance > 0 ? plan.currentBalance : plan.initialModal
+  const realtimeRisk = Math.floor((currentBal * (plan.riskPlanPercent / 100)) / 5) * 5
+  const realtimeLot = parseFloat((realtimeRisk / (plan.pipRisk * (plan.pipValue || 10))).toFixed(2))
+  const realtimeTarget = Math.floor((currentBal * (plan.profitPlanPercent / 100)) / 10) * 10
+  const realtimeAssetTarget = currentBal + realtimeTarget
 
   // Calculate progress % towards next level target
-  const startModal = activeLevelItem.assetPlan - activeLevelItem.targetPlan
-  const targetAsset = activeLevelItem.assetPlan
-  const range = targetAsset - startModal
-  const progressPercent = range > 0 ? Math.min(Math.max(((plan.currentBalance - startModal) / range) * 100, 0), 100) : 0
+  const progressPercent = realtimeTarget > 0 ? Math.min(Math.max(((currentBal - (currentBal - realtimeTarget)) / realtimeTarget) * 100, 0), 100) : 0
 
   const handleSelectLevelFromRoadmap = (lvlNum: number) => {
     setSelectedLevel(lvlNum)
@@ -234,6 +246,24 @@ export default function CompoundingDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {plan.currentBalance > 0 && Math.abs(plan.currentBalance - plan.initialModal) > 100 && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={resetBaselineMutation.isPending}
+              onClick={() => {
+                if (confirm(`Sesuaikan baseline modal plan dari $${plan.initialModal.toLocaleString()} menjadi saldo terkini $${plan.currentBalance.toLocaleString()}? Ini akan meregenerasi tabel 100 level compounding.`)) {
+                  resetBaselineMutation.mutate(plan.currentBalance)
+                }
+              }}
+              className="text-xs font-bold gap-1 text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+              title="Perbarui baseline modal awal compounding sesuai saldo akun saat ini (setelah WD / Deposit)"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>Reset Baseline Modal (${plan.currentBalance.toLocaleString('en-US', { maximumFractionDigits: 0 })})</span>
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="sm"
@@ -266,15 +296,15 @@ export default function CompoundingDetailPage() {
               L{plan.currentActiveLevel}
             </div>
             <div>
-              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">
-                Level Aktif saat ini
+              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                <Zap className="h-3 w-3" /> Saldo Terkini &amp; Position Size
               </span>
               <div className="flex items-baseline gap-2">
                 <span className="text-lg font-black text-foreground font-mono">
                   ${plan.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
                 <span className="text-xs text-muted-foreground font-sans">
-                  (Modal Awal: ${plan.initialModal.toLocaleString()})
+                  (Modal Awal Baseline: ${plan.initialModal.toLocaleString()})
                 </span>
               </div>
             </div>
@@ -282,16 +312,23 @@ export default function CompoundingDetailPage() {
 
           <div className="flex items-center gap-6">
             <div>
-              <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Rekomendasi Position Size</span>
+              <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Rekomendasi Ideal Lot ({plan.riskPlanPercent}%)</span>
               <span className="text-sm font-extrabold text-amber-400 font-mono bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-xl inline-block">
-                {activeLevelItem.idealLot} Lot
+                {realtimeLot} Lot
+              </span>
+            </div>
+
+            <div>
+              <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Batasan Risk ($)</span>
+              <span className="text-sm font-extrabold text-destructive font-mono bg-destructive/10 border border-destructive/20 px-2.5 py-1 rounded-xl inline-block">
+                -${realtimeRisk}
               </span>
             </div>
 
             <div className="text-right">
               <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Target Asset Level Ini</span>
               <span className="text-sm font-extrabold text-emerald-400 font-mono">
-                ${activeLevelItem.assetPlan.toLocaleString()}
+                ${realtimeAssetTarget.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </span>
             </div>
           </div>
@@ -301,7 +338,7 @@ export default function CompoundingDetailPage() {
         <div className="space-y-1.5 pt-2 border-t border-border/50">
           <div className="flex justify-between items-center text-xs font-semibold">
             <span className="text-muted-foreground font-mono">
-              💰 ${plan.currentBalance.toLocaleString()} dari target ${activeLevelItem.assetPlan.toLocaleString()}
+              💰 Saldo ${plan.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} dari target ${realtimeAssetTarget.toLocaleString()} (+${realtimeTarget})
             </span>
             <span className="font-mono text-amber-400 font-bold">
               {progressPercent.toFixed(1)}% menuju Level {plan.currentActiveLevel + 1}

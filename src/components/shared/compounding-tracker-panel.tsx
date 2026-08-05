@@ -11,7 +11,8 @@ import {
   ShieldAlert,
   Loader2,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Zap
 } from 'lucide-react'
 import { calculateCompoundingLevels, CompoundingLevelOutput } from '@/utils/compounding'
 import { cn } from '@/lib/utils'
@@ -69,44 +70,32 @@ export function CompoundingTrackerPanel({ currentBalance = 1000, className }: Co
     }
   }, [activePlan])
 
+  // DYNAMIC FIX: Calculate levels dynamically starting from current active balance so Ideal Lot & Risk adapt to current balance
   const levels: CompoundingLevelOutput[] = useMemo(() => {
     try {
+      const effectiveStartModal = (currentBalance && currentBalance > 0) ? currentBalance : planParams.initialModal
       return calculateCompoundingLevels({
         ...planParams,
+        initialModal: effectiveStartModal,
         totalLevels: 30,
       })
     } catch {
       return []
     }
-  }, [planParams])
+  }, [planParams, currentBalance])
 
-  // Find active level based on current balance
   const activeLevelInfo = useMemo(() => {
-    if (levels.length === 0) return { activeIndex: 0, level: null, startModal: planParams.initialModal, targetAsset: planParams.initialModal * 1.025 }
+    if (levels.length === 0) return { activeIndex: 0, level: null, startModal: currentBalance, targetAsset: currentBalance * 1.025 }
 
-    let activeIdx = 0
-    let startModal = planParams.initialModal
-
-    for (let i = 0; i < levels.length; i++) {
-      const lvl = levels[i]
-      const prevAsset = i === 0 ? planParams.initialModal : levels[i - 1].assetPlan
-      if (currentBalance < lvl.assetPlan) {
-        activeIdx = i
-        startModal = prevAsset
-        break
-      }
-      activeIdx = i
-      startModal = lvl.assetPlan
-    }
-
-    const currentLvl = levels[activeIdx] || levels[0]
+    // First level is active level for the current balance baseline
+    const currentLvl = levels[0]
     return {
-      activeIndex: activeIdx,
+      activeIndex: 0,
       level: currentLvl,
-      startModal,
+      startModal: currentBalance,
       targetAsset: currentLvl.assetPlan,
     }
-  }, [levels, currentBalance, planParams.initialModal])
+  }, [levels, currentBalance])
 
   // Calculate progress % towards next level target
   const nextLevelProgress = useMemo(() => {
@@ -148,12 +137,12 @@ export function CompoundingTrackerPanel({ currentBalance = 1000, className }: Co
       <div className="p-4 bg-card border-b border-border/60 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
-              Level Aktif Saat Ini
+            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1">
+              <Zap className="h-3 w-3" /> Saldo Terkini &amp; Position Size
             </span>
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-baseline gap-2 mt-0.5">
               <span className="text-lg font-black text-amber-400 font-mono">
-                Level {activeLevelInfo.level ? activeLevelInfo.level.levelNumber : 1}
+                Level 1
               </span>
               <span className="text-xs font-bold text-foreground font-mono">
                 ${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -163,7 +152,7 @@ export function CompoundingTrackerPanel({ currentBalance = 1000, className }: Co
 
           {activeLevelInfo.level && (
             <div className="text-right">
-              <span className="text-[10px] text-muted-foreground block">Ideal Lot</span>
+              <span className="text-[10px] text-muted-foreground block font-semibold">Ideal Lot ({planParams.riskPlanPercent}%)</span>
               <span className="text-xs font-mono font-extrabold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg inline-block">
                 {activeLevelInfo.level.idealLot} Lot
               </span>
@@ -200,7 +189,7 @@ export function CompoundingTrackerPanel({ currentBalance = 1000, className }: Co
           </div>
         ) : (
           levels.map((item, idx) => {
-            const isActive = idx === activeLevelInfo.activeIndex
+            const isActive = idx === 0
             const isAchieved = currentBalance >= item.assetPlan
 
             return (
@@ -259,7 +248,7 @@ export function CompoundingTrackerPanel({ currentBalance = 1000, className }: Co
                   </div>
                   <div>
                     <span className="text-[9px] text-muted-foreground block font-sans">Asset Target</span>
-                    <span className="text-foreground font-bold">${item.assetPlan.toLocaleString()}</span>
+                    <span className="text-foreground font-bold">${item.assetPlan.toLocaleString('en-US', { maximumFractionDigits: 1 })}</span>
                   </div>
                 </div>
               </div>
