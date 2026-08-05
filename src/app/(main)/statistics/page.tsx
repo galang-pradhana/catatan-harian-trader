@@ -122,11 +122,11 @@ export default function StatisticsPage() {
       ) : (
         <>
           {/* REQUIREMENT 2: REORGANISASI HIERARKI METRIK UTAMA */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            {/* HERO CARD: PROFIT FACTOR (Removed overflow-hidden so tooltips render over bounds) */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 relative z-30">
+            {/* HERO CARD: PROFIT FACTOR (Explicit z-40 so tooltips sit above all adjacent grid elements) */}
             <div
               className={cn(
-                'lg:col-span-1 p-5 rounded-2xl border shadow-sm flex flex-col justify-between space-y-3 relative transition-all',
+                'lg:col-span-1 p-5 rounded-2xl border shadow-sm flex flex-col justify-between space-y-3 relative z-40 transition-all',
                 pfStatus === 'healthy'
                   ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/60 shadow-emerald-500/5'
                   : pfStatus === 'warning'
@@ -189,9 +189,9 @@ export default function StatisticsPage() {
             </div>
 
             {/* SUPPORTING METRIC CARDS */}
-            <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4 relative z-30">
               {/* Total Profit */}
-              <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-2 relative">
+              <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-2 relative z-30">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-semibold text-muted-foreground uppercase">Total Net Profit</span>
@@ -216,7 +216,7 @@ export default function StatisticsPage() {
               </div>
 
               {/* Win Rate */}
-              <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-2 relative">
+              <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-2 relative z-30">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-semibold text-muted-foreground uppercase">Win Rate</span>
@@ -241,7 +241,7 @@ export default function StatisticsPage() {
               </div>
 
               {/* Total Trade */}
-              <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-2 relative">
+              <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-2 relative z-30">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-semibold text-muted-foreground uppercase">Total Trade</span>
@@ -267,7 +267,7 @@ export default function StatisticsPage() {
           </div>
 
           {/* SECONDARY STATS ROW */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center relative z-10">
             {[
               { label: 'Rata-rata Win', value: `+$${(metrics?.avgWin ?? 0).toFixed(2)}`, color: 'text-emerald-700 dark:text-emerald-400', sub: 'Per trade menang' },
               { label: 'Rata-rata Loss', value: `-$${(metrics?.avgLoss ?? 0).toFixed(2)}`, color: 'text-red-700 dark:text-red-400', sub: 'Per trade kalah' },

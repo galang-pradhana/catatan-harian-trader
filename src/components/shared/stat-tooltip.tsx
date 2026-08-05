@@ -57,7 +57,7 @@ export function StatTooltip({
   }, [isOpen, position])
 
   return (
-    <div className={cn('relative inline-flex items-center ml-1.5', className)} ref={tooltipRef}>
+    <div className={cn('relative inline-flex items-center ml-1.5', isOpen && 'z-[100]', className)} ref={tooltipRef}>
       <button
         type="button"
         onClick={(e) => {
@@ -75,7 +75,7 @@ export function StatTooltip({
       {isOpen && (
         <div
           className={cn(
-            'absolute z-50 w-72 sm:w-80 bg-popover border border-border text-popover-foreground rounded-2xl p-4 shadow-2xl text-xs space-y-2.5 backdrop-blur-md animate-in fade-in zoom-in-95',
+            'absolute z-[999] w-72 sm:w-80 bg-popover border border-border text-popover-foreground rounded-2xl p-4 shadow-2xl text-xs space-y-2.5 backdrop-blur-md animate-in fade-in zoom-in-95',
             computedPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
             align === 'right' ? 'right-0' : align === 'left' ? 'left-0' : 'left-1/2 -translate-x-1/2'
           )}
