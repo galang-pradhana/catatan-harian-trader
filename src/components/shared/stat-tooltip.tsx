@@ -11,6 +11,7 @@ export interface StatTooltipProps {
   formula?: string
   className?: string
   align?: 'left' | 'right' | 'center'
+  position?: 'top' | 'bottom' | 'auto'
 }
 
 export function StatTooltip({
@@ -19,9 +20,11 @@ export function StatTooltip({
   interpretation,
   formula,
   className,
-  align = 'right'
+  align = 'right',
+  position = 'auto'
 }: StatTooltipProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [computedPosition, setComputedPosition] = useState<'top' | 'bottom'>('bottom')
   const tooltipRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -33,6 +36,25 @@ export function StatTooltip({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (isOpen && tooltipRef.current) {
+      if (position === 'top') {
+        setComputedPosition('top')
+      } else if (position === 'bottom') {
+        setComputedPosition('bottom')
+      } else {
+        // Auto mode: check distance from top of viewport
+        const rect = tooltipRef.current.getBoundingClientRect()
+        // If icon is less than 240px from top of screen, drop down ('bottom')
+        if (rect.top < 240) {
+          setComputedPosition('bottom')
+        } else {
+          setComputedPosition('top')
+        }
+      }
+    }
+  }, [isOpen, position])
 
   return (
     <div className={cn('relative inline-flex items-center ml-1.5', className)} ref={tooltipRef}>
@@ -46,7 +68,6 @@ export function StatTooltip({
         onMouseLeave={() => setIsOpen(false)}
         className="p-0.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer focus:outline-none"
         aria-label={`Penjelasan metrik ${title}`}
-        title={`Petunjuk ${title}`}
       >
         <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/80 hover:text-primary transition-colors" />
       </button>
@@ -54,7 +75,8 @@ export function StatTooltip({
       {isOpen && (
         <div
           className={cn(
-            'absolute bottom-full mb-2 z-50 w-72 sm:w-80 bg-popover border border-border text-popover-foreground rounded-2xl p-4 shadow-xl text-xs space-y-2.5 backdrop-blur-md animate-in fade-in zoom-in-95',
+            'absolute z-50 w-72 sm:w-80 bg-popover border border-border text-popover-foreground rounded-2xl p-4 shadow-2xl text-xs space-y-2.5 backdrop-blur-md animate-in fade-in zoom-in-95',
+            computedPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
             align === 'right' ? 'right-0' : align === 'left' ? 'left-0' : 'left-1/2 -translate-x-1/2'
           )}
           onClick={(e) => e.stopPropagation()}
