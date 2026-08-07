@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
-import { calculateSQN } from '@/utils/advanced-statistics'
+import { calculateSQN, calculateMFEPercent } from '@/utils/advanced-statistics'
 
 // ── Period SQN: group trades by week or month, compute SQN per period ─────────
 function buildPeriodicSQN(
@@ -187,10 +187,22 @@ export async function GET(request: NextRequest) {
     const expectancyTrend = buildPeriodicExpectancy(trades, sqnGranularity)
 
     // ── 4. MFE Distribution Histogram ────────────────────────────────────────
-    // Use mfe_percent from DB (from CSV import); fallback to R:R efficiency proxy
+    // Compute MFE efficiency on-the-fly from mfe_value (peak price stored by EA sync)
+    // mfe_percent column is intentionally left empty — only mfe_value is populated via MT5 sync
     const mfeValues: number[] = []
     trades.forEach((t: any) => {
-      if (t.mfe_percent !== null && t.mfe_percent !== undefined) {
+      // Path 1: mfe_value from MT5 EA sync (most common)
+      if (t.mfe_value !== null && t.mfe_value !== undefined && Number(t.mfe_value) > 0 && t.open_price && t.close_price) {
+        const eff = calculateMFEPercent(
+          Number(t.open_price),
+          Number(t.close_price),
+          Number(t.mfe_value),
+          t.direction as 'buy' | 'sell'
+        )
+        if (eff !== null) mfeValues.push(eff)
+      }
+      // Path 2: mfe_percent from CSV import (if ever available)
+      else if (t.mfe_percent !== null && t.mfe_percent !== undefined && Number(t.mfe_percent) > 0) {
         mfeValues.push(Number(t.mfe_percent))
       }
     })
