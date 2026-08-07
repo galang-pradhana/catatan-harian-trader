@@ -1,7 +1,8 @@
 'use client'
 
 import React from 'react'
-import { Award, HelpCircle, AlertCircle } from 'lucide-react'
+import { Award, AlertCircle } from 'lucide-react'
+import { StatTooltip } from '@/components/shared/stat-tooltip'
 import { cn } from '@/lib/utils'
 
 export interface SqnCardProps {
@@ -32,12 +33,12 @@ export function SqnCard({ sqnScore = 2.65, sampleCount = 28 }: SqnCardProps) {
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <Award className="h-4 w-4 text-primary" /> Skor Kualitas Sistem (SQN)
         </span>
-        <div className="group relative">
-          <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer transition-colors" />
-          <div className="absolute right-0 top-6 hidden group-hover:block w-64 p-2.5 bg-popover text-popover-foreground border border-border rounded-xl text-[11px] shadow-xl z-50 leading-normal">
-            <strong>System Quality Number (SQN):</strong> Diciptakan oleh Dr. Van Tharp. Mengukur skor kualitas sistem trading berdasarkan ekspektansi R-multiple &amp; konsistensi hasil.
-          </div>
-        </div>
+        <StatTooltip
+          title="SQN (Skor Kualitas Sistem)"
+          definition="System Quality Number — mengukur konsistensi & keandalan edge sistem trading Anda berdasarkan expectancy dan variasi hasil. Diciptakan oleh Dr. Van Tharp."
+          interpretation="Skala: <1.0 Buruk, 1.0-2.0 Rata-rata, 2.0-3.0 Baik, 3.0-5.0 Sangat Baik, >5.0 Luar Biasa (jarang dicapai)."
+          formula="SQN = (Mean R-multiple / StdDev R-multiple) × √min(n, 100)"
+        />
       </div>
 
       <div className="space-y-2 py-1">

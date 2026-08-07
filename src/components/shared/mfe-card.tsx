@@ -1,7 +1,8 @@
 'use client'
 
 import React from 'react'
-import { Target, HelpCircle } from 'lucide-react'
+import { Target } from 'lucide-react'
+import { StatTooltip } from '@/components/shared/stat-tooltip'
 import { cn } from '@/lib/utils'
 
 export interface MfeCardProps {
@@ -27,12 +28,12 @@ export function MfeCard({ efficiencyPercent = 74, excludedCount = 0 }: MfeCardPr
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <Target className="h-4 w-4 text-primary" /> Efisiensi Exit (MFE)
         </span>
-        <div className="group relative">
-          <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer transition-colors" />
-          <div className="absolute right-0 top-6 hidden group-hover:block w-56 p-2.5 bg-popover text-popover-foreground border border-border rounded-xl text-[11px] shadow-xl z-50 leading-normal">
-            <strong>Maximum Favorable Excursion (MFE):</strong> Mengukur berapa persen dari puncak profit potensial yang berhasil direalisasikan sebelum trade ditutup.
-          </div>
-        </div>
+        <StatTooltip
+          title="MFE (Efisiensi Exit)"
+          definition="Maximum Favorable Excursion — persentase dari potensi profit maksimal yang benar-benar Anda ambil sebelum close position."
+          interpretation="Angka rendah menandakan premature exit (keluar terlalu cepat). Angka mendekati 100% menandakan Anda konsisten menangkap potensi profit maksimal."
+          formula="Exit Efficiency = (Actual Profit / MFE Potential Profit) × 100"
+        />
       </div>
 
       <div className="flex items-center gap-4 py-1">
