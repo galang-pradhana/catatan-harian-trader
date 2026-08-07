@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
 import { calculateSQN, calculateMFEPercent } from '@/utils/advanced-statistics'
+import { computeTradeActualRR } from '@/utils/trade-metrics'
 
 // ── Period SQN: group trades by week or month, compute SQN per period ─────────
 function buildPeriodicSQN(
@@ -10,8 +11,8 @@ function buildPeriodicSQN(
   const buckets = new Map<string, number[]>()
 
   for (const t of trades) {
-    const rr = Number(t.trade_journal?.actual_rr ?? null)
-    if (!t.trade_journal?.actual_rr || isNaN(rr)) continue
+    const rr = computeTradeActualRR(t)
+    if (rr === null || isNaN(rr)) continue
 
     const dt = new Date(t.open_time)
     let key: string
@@ -147,8 +148,8 @@ export async function GET(request: NextRequest) {
       if (pnl > 0) { grossProfit += pnl; winCount++ }
       else if (pnl < 0) { grossLoss += Math.abs(pnl) }
 
-      const rr = Number(t.trade_journal?.actual_rr ?? null)
-      if (t.trade_journal?.actual_rr && !isNaN(rr)) {
+      const rr = computeTradeActualRR(t)
+      if (rr !== null && !isNaN(rr)) {
         allRMultiples.push(rr)
         totalActualRR += rr
         actualRRCount++
@@ -230,7 +231,7 @@ export async function GET(request: NextRequest) {
     trades.forEach((t: any) => {
       const sym = String(t.symbol || 'UNKNOWN').toUpperCase()
       const pnl = Number(t.pnl ?? 0)
-      const rr = t.trade_journal?.actual_rr ? Number(t.trade_journal.actual_rr) : null
+      const rr = computeTradeActualRR(t)
 
       if (!pairMap.has(sym)) pairMap.set(sym, { trades: [], wins: 0, grossP: 0, grossL: 0, rMultiples: [] })
       const entry = pairMap.get(sym)!
@@ -271,7 +272,7 @@ export async function GET(request: NextRequest) {
     trades.forEach((t: any) => {
       const strategies = (t.trade_strategies || []).map((ts: any) => ts.strategies).filter(Boolean)
       const pnl = Number(t.pnl ?? 0)
-      const rr = t.trade_journal?.actual_rr ? Number(t.trade_journal.actual_rr) : null
+      const rr = computeTradeActualRR(t)
 
       if (strategies.length === 0) {
         tradesWithoutStrategy++
@@ -329,7 +330,7 @@ export async function GET(request: NextRequest) {
       const mood = t.trade_journal?.mood
       if (!mood) return
       const pnl = Number(t.pnl ?? 0)
-      const rr = t.trade_journal?.actual_rr ? Number(t.trade_journal.actual_rr) : null
+      const rr = computeTradeActualRR(t)
       if (!moodSqnMap.has(mood)) moodSqnMap.set(mood, { rMultiples: [], wins: 0, total: 0, pnl: 0 })
       const entry = moodSqnMap.get(mood)!
       entry.total++

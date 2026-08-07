@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
 import { calculateMFEPercent } from '@/utils/advanced-statistics'
+import { computeTradeActualRR } from '@/utils/trade-metrics'
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
-
     if (authErr || !user) {
       return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
     }
@@ -261,8 +261,10 @@ export async function GET(request: NextRequest) {
         totalPlannedRR += Number(journal.planned_rr)
         plannedRRCount++
       }
-      if (journal?.actual_rr && !isNaN(Number(journal.actual_rr))) {
-        totalActualRR += Number(journal.actual_rr)
+      
+      const computedRR = computeTradeActualRR(t)
+      if (computedRR !== null && !isNaN(computedRR)) {
+        totalActualRR += computedRR
         actualRRCount++
       }
 

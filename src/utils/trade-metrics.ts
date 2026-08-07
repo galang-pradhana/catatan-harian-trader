@@ -110,3 +110,45 @@ export function analyzeTradeExit(trade: {
     }
   }
 }
+
+/**
+ * Helper untuk mendapatkan R:R aktual dari trade.
+ * Priority:
+ * 1. Nilai dari journal `actual_rr` jika diisi manual oleh user.
+ * 2. Hitung otomatis dari SL & harga MT5 jika trade closed & ada SL (>0).
+ * 3. Return null (unrated/skip) jika tidak ada SL & journal kosong.
+ */
+export function computeTradeActualRR(trade: {
+  direction: string
+  open_price: number | string
+  close_price?: number | string | null
+  sl?: number | string | null
+  status?: string
+  trade_journal?: { actual_rr?: number | string | null } | null
+}): number | null {
+  // 1. If explicitly set in trade journal, use that
+  const journalRR = trade.trade_journal?.actual_rr
+  if (journalRR !== undefined && journalRR !== null && journalRR !== '') {
+    const num = Number(journalRR)
+    if (!isNaN(num)) return num
+  }
+
+  // 2. Auto-compute from MT5 prices & SL
+  const openP = Number(trade.open_price)
+  const closeP = trade.close_price ? Number(trade.close_price) : null
+  const slP = trade.sl ? Number(trade.sl) : null
+  const isBuy = (trade.direction || '').toLowerCase() === 'buy'
+
+  if (openP > 0 && closeP !== null && slP !== null && slP > 0 && slP !== openP) {
+    const plannedRisk = Math.abs(openP - slP)
+    const actualPnlPips = isBuy ? closeP - openP : openP - closeP
+    if (plannedRisk > 0) {
+      const ratio = actualPnlPips / plannedRisk
+      return Math.round(ratio * 100) / 100
+    }
+  }
+
+  // 3. No SL & no journal entry -> unrated (null)
+  return null
+}
+

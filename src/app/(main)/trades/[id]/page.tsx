@@ -30,7 +30,7 @@ import {
   Target
 } from 'lucide-react'
 import { Trade, SelfGrade, MoodType } from '@/types/trade'
-import { analyzeTradeExit } from '@/utils/trade-metrics'
+import { analyzeTradeExit, computeTradeActualRR } from '@/utils/trade-metrics'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/shared/toast'
@@ -178,6 +178,7 @@ export default function TradeDetailPage({
       setEditSl(trade.sl ? String(trade.sl) : '')
       setEditTp(trade.tp ? String(trade.tp) : '')
       const j = trade.trade_journal
+      const autoComputedRR = computeTradeActualRR(trade)
       if (j) {
         setReasonEntry(j.reason_entry || '')
         setMood(j.mood)
@@ -185,11 +186,13 @@ export default function TradeDetailPage({
         setLessonLearned(j.lesson_learned || '')
         setRiskPercent(j.risk_percent)
         setPlannedRR(j.planned_rr)
-        setActualRR(j.actual_rr)
+        setActualRR(j.actual_rr ?? (autoComputedRR !== null ? autoComputedRR : undefined))
         setSelfGrade(j.self_grade)
         if (j.updated_at) {
           setLastSavedTime(new Date(j.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
         }
+      } else {
+        setActualRR(autoComputedRR !== null ? autoComputedRR : undefined)
       }
       setSelectedStrategies((trade.strategies ?? []).map((s: {id: string}) => s.id))
       setSelectedMistakes((trade.mistakes ?? []).map((m: {id: string}) => m.id))

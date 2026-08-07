@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
 import { calculateSQN, calculateMFEPercent } from '@/utils/advanced-statistics'
+import { computeTradeActualRR } from '@/utils/trade-metrics'
 
 function parseMonth(param: string | null): { year: number; month: number } {
   const now = new Date()
@@ -27,10 +28,10 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(Date.UTC(year, month - 1, 1)).toISOString()
     const endDate   = new Date(Date.UTC(year, month, 0, 23, 59, 59)).toISOString()
 
-    // 1. Fetch trades for SQN (closed trades with actual_rr from journal)
+    // 1. Fetch trades for SQN (closed trades with actual_rr or SL)
     const { data: sqnTrades, error: sqnErr } = await supabase
       .from('trades')
-      .select('trade_journal(actual_rr)')
+      .select('direction, open_price, close_price, sl, status, trade_journal(actual_rr)')
       .eq('user_id', user.id)
       .gte('open_time', startDate)
       .lte('open_time', endDate)
@@ -41,8 +42,8 @@ export async function GET(request: NextRequest) {
     }
 
     const rMultiples: number[] = (sqnTrades ?? [])
-      .map((t: any) => t.trade_journal?.actual_rr)
-      .filter((rr: any) => rr !== null && rr !== undefined && typeof rr === 'number')
+      .map((t: any) => computeTradeActualRR(t))
+      .filter((rr: any): rr is number => rr !== null && !isNaN(rr))
 
     const sqnResult = calculateSQN(rMultiples)
 
