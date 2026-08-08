@@ -1055,7 +1055,7 @@ export function TradeJournalDrawer({
                 Batal
               </Button>
               <Button
-                variant="destructive"
+                variant="danger"
                 size="sm"
                 onClick={() => {
                   setShowExitConfirm(false)
