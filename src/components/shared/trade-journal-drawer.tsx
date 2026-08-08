@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/shared/toast'
 import { cn } from '@/lib/utils'
+import { getEmotionByKey } from '@/constants/psychology'
 
 interface TradeJournalDrawerProps {
   isOpen: boolean
@@ -330,6 +331,37 @@ export function TradeJournalDrawer({
     return tradesList[currentIndex + 1]
   }, [currentIndex, tradesList])
 
+  const [todayEmotionWarning, setTodayEmotionWarning] = useState<string | null>(null)
+
+  // Fetch today's logged emotion warning when drawer opens
+  useEffect(() => {
+    if (!isOpen) return
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const todayMonth = todayStr.slice(0, 7)
+
+    fetch(`/api/psychology/logs?month=${todayMonth}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.logs)) {
+          const todayLog = data.logs.find((l: any) => l.log_date === todayStr)
+          if (todayLog) {
+            const category = todayLog.category
+            if (category === 'impulsive' || category === 'greed') {
+              const emoDef = getEmotionByKey(todayLog.emotion)
+              setTodayEmotionWarning(
+                `⚠️ Kamu menandai emosi ${emoDef.emoji} ${emoDef.label} (${emoDef.categoryLabel}) hari ini. Pastikan entry sesuai trading plan kamu.`
+              )
+            } else {
+              setTodayEmotionWarning(null)
+            }
+          } else {
+            setTodayEmotionWarning(null)
+          }
+        }
+      })
+      .catch(() => setTodayEmotionWarning(null))
+  }, [isOpen])
+
   // Form Completeness Math (Progress Bar)
   const completeness = useMemo(() => {
     let filled = 0
@@ -632,6 +664,16 @@ export function TradeJournalDrawer({
         {/* 📜 DRAWER BODY (SCROLLABLE FORM) */}
         {/* ========================================================================= */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          {/* Soft Warning Banner for Today's Logged Impulsive / Greed Emotion */}
+          {todayEmotionWarning && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs text-amber-300 font-semibold shadow-xs animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                <span>{todayEmotionWarning}</span>
+              </div>
+            </div>
+          )}
+
           {isTradeLoading && !isManualMode && !isBatchMode ? (
             <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
               <Loader2 className="h-8 w-8 text-primary animate-spin" />

@@ -1,197 +1,913 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Brain,
-  Smile,
-  Meh,
-  Frown,
   Flame,
-  Zap,
   ChevronLeft,
   ChevronRight,
-  HeartHandshake,
   CheckCircle2,
+  AlertTriangle,
+  Plus,
+  Filter,
+  BarChart3,
+  Calendar as CalendarIcon,
+  Tag,
+  BookOpen,
+  Sparkles,
+  TrendingUp,
+  TrendingDown,
+  Info,
+  ShieldCheck,
+  ShieldAlert,
+  Loader2,
+  Smile
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import {
+  EMOTION_TAXONOMY,
+  EMOTION_CATEGORY_DEFS,
+  PRESET_TRIGGER_TAGS,
+  getEmotionByKey,
+} from '@/constants/psychology'
+import {
+  EmotionOption,
+  TriggerTagOption,
+  DailyPsychologyLog,
+  EmotionCategoryKey,
+  PsychologyAnalyticsSummary,
+} from '@/types/psychology'
 
-const moodEmojis: Record<string, { label: string; emoji: string; color: string }> = {
-  confident: { label: 'Percaya Diri', emoji: '😊', color: 'text-profit bg-profit/15 border-profit/30' },
-  neutral:   { label: 'Netral',       emoji: '😐', color: 'text-foreground bg-muted border-border' },
-  fomo:      { label: 'FOMO',         emoji: '😤', color: 'text-amber-500 bg-amber-500/15 border-amber-500/30' },
-  anxious:   { label: 'Cemas',        emoji: '😰', color: 'text-blue-500 bg-blue-500/15 border-blue-500/30' },
-  greedy:    { label: 'Serakah',      emoji: '🤑', color: 'text-purple-500 bg-purple-500/15 border-purple-500/30' },
-}
+const MONTH_NAMES = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+]
 
 export default function PsychologyPage() {
-  const [activeTab, setActiveTab] = useState<'mood' | 'reflection' | 'triggers'>('mood')
-  const [currentMonth, setCurrentMonth] = useState('Mei 2026')
-  const [selectedDay, setSelectedDay] = useState(24)
+  const [activeTab, setActiveTab] = useState<'mood' | 'analytics' | 'reflection' | 'triggers'>('mood')
+  
+  // Date state (defaults to current month)
+  const now = new Date()
+  const [currentYear, setCurrentYear] = useState(now.getFullYear())
+  const [currentMonth, setCurrentMonth] = useState(now.getMonth() + 1) // 1-12
+  const [selectedDay, setSelectedDay] = useState<number>(now.getDate())
 
-  const [reflectionText, setReflectionText] = useState(
-    'Mulai lebih sabar menunggu setup di H4 dan tidak overtrading. Emosi jauh lebih stabil saat mengatur lot sesuai risk 1%.'
-  )
+  // Data states
+  const [isLoading, setIsLoading] = useState(true)
+  const [logsMap, setLogsMap] = useState<Record<string, DailyPsychologyLog>>({})
+  const [tradeSummaryMap, setTradeSummaryMap] = useState<Record<string, { tradesCount: number; winsCount: number; lossesCount: number; totalPnl: number }>>({})
+  const [disciplineStreak, setDisciplineStreak] = useState(0)
+  const [analytics, setAnalytics] = useState<PsychologyAnalyticsSummary | null>(null)
 
-  // Dummy mood map per day
-  const dayMoodMap: Record<number, string> = {
-    3: 'confident', 6: 'confident', 7: 'fomo', 8: 'neutral', 9: 'confident',
-    10: 'anxious', 13: 'confident', 14: 'fomo', 15: 'neutral', 16: 'confident',
-    17: 'greedy', 20: 'fomo', 21: 'neutral', 22: 'fomo', 23: 'greedy', 24: 'confident',
-    27: 'fomo', 28: 'confident', 29: 'neutral', 30: 'confident', 31: 'fomo'
+  // Custom trigger tags library
+  const [customTriggers, setCustomTriggers] = useState<TriggerTagOption[]>([])
+  const [newCustomTagInput, setNewCustomTagInput] = useState('')
+  const [isAddTagModalOpen, setIsAddTagModalOpen] = useState(false)
+
+  // Selected Day Form states
+  const [selectedEmotion, setSelectedEmotion] = useState<string>('confident')
+  const [selectedTriggerTags, setSelectedTriggerTags] = useState<string[]>([])
+  const [reflectionText, setReflectionText] = useState('')
+  const [isSavingLog, setIsSavingLog] = useState(false)
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('')
+
+  // Reflection Tab Filter states
+  const [reflectionFilterCategory, setReflectionFilterCategory] = useState<string>('all')
+  const [reflectionFilterTag, setReflectionFilterTag] = useState<string>('all')
+
+  const monthParam = `${currentYear}-${String(currentMonth).padStart(2, '0')}`
+  const selectedDateStr = `${monthParam}-${String(selectedDay).padStart(2, '0')}`
+
+  // All available trigger tags (Preset + Custom)
+  const allTriggerTags = useMemo(() => {
+    return [...PRESET_TRIGGER_TAGS, ...customTriggers]
+  }, [customTriggers])
+
+  // Fetch psychology logs and custom triggers
+  const fetchData = async () => {
+    setIsLoading(true)
+    try {
+      // 1. Fetch logs & analytics for monthParam
+      const res = await fetch(`/api/psychology/logs?month=${monthParam}`)
+      if (res.ok) {
+        const json = await res.json()
+        const lMap: Record<string, DailyPsychologyLog> = {}
+        if (Array.isArray(json.logs)) {
+          json.logs.forEach((item: any) => {
+            lMap[item.log_date] = {
+              id: item.id,
+              logDate: item.log_date,
+              emotion: item.emotion,
+              category: item.category,
+              triggerTags: item.trigger_tags || [],
+              reflectionNote: item.reflection_note || '',
+            }
+          })
+        }
+        setLogsMap(lMap)
+
+        const tMap: Record<string, any> = {}
+        if (Array.isArray(json.tradeSummaries)) {
+          json.tradeSummaries.forEach((ts: any) => {
+            tMap[ts.date] = ts
+          })
+        }
+        setTradeSummaryMap(tMap)
+
+        setDisciplineStreak(json.disciplineStreak || 0)
+
+        setAnalytics({
+          disciplineStreak: json.disciplineStreak || 0,
+          totalLogsCount: Object.keys(lMap).length,
+          positivePercentage: 0,
+          categoryBreakdown: json.categoryBreakdown || [],
+          triggerTagRankings: json.triggerTagRankings || [],
+          keyInsights: json.keyInsights || [],
+          emotionTrend: [],
+        })
+      }
+
+      // 2. Fetch custom trigger tags
+      const trigRes = await fetch('/api/psychology/triggers')
+      if (trigRes.ok) {
+        const trigJson = await trigRes.json()
+        if (Array.isArray(trigJson.triggers)) {
+          setCustomTriggers(
+            trigJson.triggers.map((t: any) => ({
+              id: t.id || t.name,
+              label: t.name,
+              isCustom: true,
+            }))
+          )
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load psychology data:', e)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
+  useEffect(() => {
+    fetchData()
+  }, [monthParam])
+
+  // Sync selected day form whenever selectedDay or logsMap changes
+  useEffect(() => {
+    const existingLog = logsMap[selectedDateStr]
+    if (existingLog) {
+      setSelectedEmotion(existingLog.emotion)
+      setSelectedTriggerTags(existingLog.triggerTags || [])
+      setReflectionText(existingLog.reflectionNote || '')
+    } else {
+      setSelectedEmotion('confident')
+      setSelectedTriggerTags([])
+      setReflectionText('')
+    }
+    setSaveSuccessMsg('')
+  }, [selectedDateStr, logsMap])
+
+  // Save/Update Daily Log
+  const handleSaveDailyLog = async () => {
+    setIsSavingLog(true)
+    setSaveSuccessMsg('')
+    try {
+      const res = await fetch('/api/psychology/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          log_date: selectedDateStr,
+          emotion: selectedEmotion,
+          trigger_tags: selectedTriggerTags,
+          reflection_note: reflectionText,
+        }),
+      })
+
+      if (res.ok) {
+        setSaveSuccessMsg('✓ Log emosi berhasil disimpan!')
+        fetchData()
+        setTimeout(() => setSaveSuccessMsg(''), 3000)
+      } else {
+        const json = await res.json()
+        alert(json.message || 'Gagal menyimpan log emosi')
+      }
+    } catch (e) {
+      alert('Terjadi kesalahan koneksi saat menyimpan')
+    } finally {
+      setIsSavingLog(false)
+    }
+  }
+
+  // Add Custom Trigger Tag
+  const handleAddCustomTag = async () => {
+    if (!newCustomTagInput.trim()) return
+    try {
+      const res = await fetch('/api/psychology/triggers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newCustomTagInput.trim() }),
+      })
+      if (res.ok) {
+        const json = await res.json()
+        const created = json.tag
+        const newTagOpt: TriggerTagOption = {
+          id: created.id || created.name,
+          label: created.name,
+          isCustom: true,
+        }
+        setCustomTriggers((prev) => [...prev, newTagOpt])
+        setSelectedTriggerTags((prev) => [...prev, newTagOpt.id])
+        setNewCustomTagInput('')
+        setIsAddTagModalOpen(false)
+      }
+    } catch (e) {
+      alert('Gagal menambah tag custom')
+    }
+  }
+
+  const handlePrevMonth = () => {
+    if (currentMonth === 1) {
+      setCurrentMonth(12)
+      setCurrentYear((y) => y - 1)
+    } else {
+      setCurrentMonth((m) => m - 1)
+    }
+  }
+
+  const handleNextMonth = () => {
+    if (currentMonth === 12) {
+      setCurrentMonth(1)
+      setCurrentYear((y) => y + 1)
+    } else {
+      setCurrentMonth((m) => m + 1)
+    }
+  }
+
+  // Days in month calculation
+  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate()
+  const firstDayWeekday = (new Date(currentYear, currentMonth - 1, 1).getDay() + 6) % 7 // Monday-indexed 0..6
+
+  // Filtered reflections for Reflection Tab
+  const allReflectionsList = useMemo(() => {
+    return Object.values(logsMap)
+      .filter((log) => log.reflectionNote && log.reflectionNote.trim().length > 0)
+      .filter((log) => {
+        if (reflectionFilterCategory !== 'all') {
+          const emoObj = getEmotionByKey(log.emotion)
+          if (emoObj.category !== reflectionFilterCategory && log.emotion !== reflectionFilterCategory) {
+            return false
+          }
+        }
+        if (reflectionFilterTag !== 'all') {
+          if (!log.triggerTags.includes(reflectionFilterTag)) return false
+        }
+        return true
+      })
+      .sort((a, b) => new Date(b.logDate).getTime() - new Date(a.logDate).getTime())
+  }, [logsMap, reflectionFilterCategory, reflectionFilterTag])
+
+  // Current selected emotion object
+  const currentEmotionObj = getEmotionByKey(selectedEmotion)
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
+    <div className="space-y-6 pb-12">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Brain className="h-6 w-6 text-primary" /> Psikologi Trading &amp; Mood Tracker
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-black text-foreground flex items-center gap-2 tracking-tight">
+              <Brain className="h-7 w-7 text-primary shrink-0" /> Psikologi Trading &amp; Mood Tracker
+            </h1>
+            {/* Discipline Streak Counter Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-red-500/20 border border-amber-500/30 text-amber-400 text-xs font-black shadow-xs animate-pulse">
+              <Flame className="h-4 w-4 text-amber-400 fill-amber-400 shrink-0" />
+              <span>Streak Disiplin: {disciplineStreak} Hari</span>
+            </div>
+          </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Pantau kondisi emosi, tingkat disiplin, dan pemicu psikologis yang mempengaruhi keputusan trading Anda.
+            Analisis korelasi kondisi emosi, tingkat disiplin, dan pemicu psikologis terhadap performa trading Anda.
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl p-1 shadow-sm">
+        {/* TAB NAVIGATION */}
+        <div className="flex items-center gap-1 bg-card border border-border rounded-xl p-1 shadow-xs overflow-x-auto">
           {[
-            { id: 'mood',       label: 'Mood Tracker' },
-            { id: 'reflection', label: 'Refleksi' },
-            { id: 'triggers',   label: 'Pemicu Emosi' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer',
-                activeTab === tab.id
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+            { id: 'mood',      label: 'Mood Tracker', icon: Smile },
+            { id: 'analytics', label: 'Pola & Insight', icon: BarChart3 },
+            { id: 'reflection',label: 'Refleksi',    icon: BookOpen },
+            { id: 'triggers',  label: 'Pemicu Emosi',icon: Tag },
+          ].map((tab) => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap',
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                )}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span>{tab.label}</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Mood Tracker Calendar Grid (2/3 width) */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-4">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm"><ChevronLeft className="h-4 w-4" /></Button>
-              <h2 className="text-lg font-bold text-foreground px-2">{currentMonth}</h2>
-              <Button variant="outline" size="sm"><ChevronRight className="h-4 w-4" /></Button>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Pilih Emosi Hari Ini:</span>
-              <span className="text-base">😊 😐 😤 😰 🤑</span>
-            </div>
-          </div>
+      {/* TAB 1: MOOD TRACKER (Calendar Grid + Day Logger) */}
+      {activeTab === 'mood' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          {/* LEFT: CALENDAR GRID (2/3 width) */}
+          <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+            {/* Month Header Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handlePrevMonth} className="h-8 w-8 p-0">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <h2 className="text-base sm:text-lg font-extrabold text-foreground px-2 min-w-[140px] text-center font-mono">
+                  {MONTH_NAMES[currentMonth - 1]} {currentYear}
+                </h2>
+                <Button variant="outline" size="sm" onClick={handleNextMonth} className="h-8 w-8 p-0">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
 
-          {/* Grid Headers (Sen-Min) */}
-          <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-muted-foreground uppercase py-1">
-            {['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map((d) => (
-              <div key={d}>{d}</div>
-            ))}
-          </div>
-
-          {/* Days Grid */}
-          <div className="grid grid-cols-7 gap-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={`pad-${i}`} className="h-16 rounded-xl bg-muted/10 border border-border/20 opacity-30" />
-            ))}
-
-            {Array.from({ length: 31 }).map((_, i) => {
-              const dayNum = i + 1
-              const moodKey = dayMoodMap[dayNum]
-              const moodObj = moodKey ? moodEmojis[moodKey] : null
-              const isSelected = selectedDay === dayNum
-
-              return (
-                <div
-                  key={dayNum}
-                  onClick={() => setSelectedDay(dayNum)}
-                  className={cn(
-                    'h-16 rounded-xl p-2 border flex flex-col justify-between transition-all cursor-pointer select-none',
-                    isSelected
-                      ? 'border-primary ring-2 ring-primary/20 bg-primary/5 shadow-md'
-                      : moodObj
-                      ? 'bg-card border-border/60 hover:border-primary/50'
-                      : 'bg-card border-border/40 hover:bg-muted/20'
-                  )}
-                >
-                  <span className="text-xs font-bold text-foreground">{dayNum}</span>
-                  {moodObj ? (
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg leading-none">{moodObj.emoji}</span>
-                      <span className={cn('text-[9px] px-1 py-0.2 rounded font-semibold border', moodObj.color)}>
-                        {moodObj.label.split(' ')[0]}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground opacity-40">-</span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Right Column: Ringkasan Mood & Catatan Refleksi (1/3 width) */}
-        <div className="space-y-5">
-          {/* Card: Ringkasan Mood */}
-          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="text-base font-bold text-foreground border-b border-border pb-3">
-              Ringkasan Mood Bulanan
-            </h3>
-
-            <div className="space-y-3">
-              {[
-                { emoji: '😊', label: 'Percaya Diri', count: 12, pct: 43, color: 'bg-profit' },
-                { emoji: '😐', label: 'Netral',       count: 10, pct: 36, color: 'bg-muted-foreground' },
-                { emoji: '😤', label: 'FOMO',         count: 5,  pct: 18, color: 'bg-amber-500' },
-                { emoji: '😰', label: 'Cemas',        count: 1,  pct: 3,  color: 'bg-blue-500' },
-              ].map((m) => (
-                <div key={m.label} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-2 font-medium text-foreground">
-                      <span className="text-base">{m.emoji}</span> {m.label}
+              {/* Taxonomy Color Legend */}
+              <div className="flex items-center gap-2 flex-wrap text-[10px] font-bold">
+                <span className="text-muted-foreground">Kategori:</span>
+                {(Object.keys(EMOTION_CATEGORY_DEFS) as EmotionCategoryKey[]).map((catKey) => {
+                  const def = EMOTION_CATEGORY_DEFS[catKey]
+                  return (
+                    <span key={catKey} className={cn('px-2 py-0.5 rounded border', def.badgeColor)}>
+                      {def.label.split('/')[0]}
                     </span>
-                    <span className="font-mono font-bold text-muted-foreground">
-                      {m.count} ({m.pct}%)
-                    </span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-muted/40 overflow-hidden">
-                    <div className={cn('h-full rounded-full', m.color)} style={{ width: `${m.pct}%` }} />
-                  </div>
-                </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Days Weekday Header (Sen - Min) */}
+            <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-muted-foreground uppercase py-1">
+              {['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map((d) => (
+                <div key={d}>{d}</div>
               ))}
             </div>
+
+            {/* Days Grid */}
+            <div className="grid grid-cols-7 gap-2">
+              {/* Padding empty slots for month start weekday offset */}
+              {Array.from({ length: firstDayWeekday }).map((_, i) => (
+                <div key={`pad-${i}`} className="h-20 rounded-xl bg-muted/10 border border-border/20 opacity-30" />
+              ))}
+
+              {/* Actual Month Days */}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const dayNum = i + 1
+                const dateStr = `${monthParam}-${String(dayNum).padStart(2, '0')}`
+                const log = logsMap[dateStr]
+                const emoObj = log ? getEmotionByKey(log.emotion) : null
+                const tradeSum = tradeSummaryMap[dateStr]
+                const isSelected = selectedDay === dayNum
+
+                return (
+                  <div
+                    key={dayNum}
+                    onClick={() => setSelectedDay(dayNum)}
+                    className={cn(
+                      'h-20 rounded-xl p-2 border flex flex-col justify-between transition-all cursor-pointer select-none group relative overflow-hidden',
+                      isSelected
+                        ? 'border-primary ring-2 ring-primary/30 bg-primary/10 shadow-md z-10'
+                        : emoObj
+                        ? 'bg-card border-border hover:border-primary/50'
+                        : 'bg-card border-border/40 hover:bg-muted/30'
+                    )}
+                  >
+                    {/* Day Number Header & Emotion Emoji */}
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={cn(
+                          'text-xs font-black font-mono',
+                          isSelected ? 'text-primary font-extrabold' : 'text-foreground'
+                        )}
+                      >
+                        {dayNum}
+                      </span>
+                      {emoObj && (
+                        <span className="text-base leading-none group-hover:scale-110 transition-transform">
+                          {emoObj.emoji}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Emotion Category Badge */}
+                    {emoObj ? (
+                      <div className="mt-0.5">
+                        <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.2 rounded border truncate block text-center', emoObj.badgeColor)}>
+                          {emoObj.label}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground opacity-30 italic font-mono">-</span>
+                    )}
+
+                    {/* Auto-link Daily Trade Summary Sub-label */}
+                    {tradeSum && tradeSum.tradesCount > 0 ? (
+                      <div className="text-[9px] font-mono font-bold pt-0.5 border-t border-border/40 flex items-center justify-between truncate text-muted-foreground">
+                        <span>{tradeSum.tradesCount}T • {tradeSum.winsCount}W/{tradeSum.lossesCount}L</span>
+                        <span className={cn(tradeSum.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                          {tradeSum.totalPnl >= 0 ? '+' : ''}${tradeSum.totalPnl.toFixed(0)}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-[8px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity font-mono">
+                        Klik isi log
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
-          {/* Card: Catatan Refleksi */}
-          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="text-base font-bold text-foreground border-b border-border pb-3">
-              Catatan Refleksi Emosi
-            </h3>
+          {/* RIGHT: DAY LOG & REFLECTION FORM (1/3 width) */}
+          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-5">
+            <div className="border-b border-border pb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-extrabold text-foreground flex items-center gap-1.5">
+                  <CalendarIcon className="h-4 w-4 text-primary" />
+                  <span>Log Emosi {selectedDay} {MONTH_NAMES[currentMonth - 1]}</span>
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+                  {selectedDateStr}
+                </p>
+              </div>
 
-            <textarea
-              rows={4}
-              value={reflectionText}
-              onChange={(e) => setReflectionText(e.target.value)}
-              placeholder="Tulis refleksi emosi dan pola pikir Anda..."
-              className="w-full bg-background border border-border rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-y"
-            />
-            <Button variant="primary" size="sm" className="w-full text-xs">
-              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Simpan Refleksi
-            </Button>
+              {/* Trade summary for selected date */}
+              {tradeSummaryMap[selectedDateStr] && (
+                <div className="text-right text-xs font-mono">
+                  <span className="font-bold block text-foreground">
+                    {tradeSummaryMap[selectedDateStr].tradesCount} Trade
+                  </span>
+                  <span className={cn('font-bold', tradeSummaryMap[selectedDateStr].totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                    {tradeSummaryMap[selectedDateStr].totalPnl >= 0 ? '+' : ''}${tradeSummaryMap[selectedDateStr].totalPnl.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 1. EMOTION SELECTOR (TAXONOMY BY 5 CATEGORIES) */}
+            <div className="space-y-3">
+              <label className="text-xs font-extrabold text-foreground block uppercase tracking-wider">
+                1. Pilih Emosi Utama Hari Ini:
+              </label>
+
+              <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                {(Object.keys(EMOTION_CATEGORY_DEFS) as EmotionCategoryKey[]).map((catKey) => {
+                  const catDef = EMOTION_CATEGORY_DEFS[catKey]
+                  const categoryEmotions = EMOTION_TAXONOMY.filter((e) => e.category === catKey)
+
+                  return (
+                    <div key={catKey} className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                        {catDef.label}
+                      </span>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {categoryEmotions.map((emo) => {
+                          const isSelected = selectedEmotion === emo.key
+                          return (
+                            <button
+                              key={emo.key}
+                              type="button"
+                              onClick={() => setSelectedEmotion(emo.key)}
+                              className={cn(
+                                'p-2 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all text-left cursor-pointer',
+                                isSelected
+                                  ? 'bg-primary text-primary-foreground border-primary ring-2 ring-primary/30 shadow-xs'
+                                  : 'bg-muted/30 border-border hover:border-primary/40 text-foreground'
+                              )}
+                            >
+                              <span className="text-base leading-none">{emo.emoji}</span>
+                              <span className="truncate">{emo.label}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 2. TRIGGER TAGS SELECTOR (PRESET + CUSTOM) */}
+            <div className="space-y-2 pt-2 border-t border-border">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-foreground uppercase tracking-wider">
+                  2. Pemicu Emosi (Trigger Tags):
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsAddTagModalOpen(true)}
+                  className="text-[11px] text-primary hover:underline font-bold inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="h-3 w-3" /> Custom Tag
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {allTriggerTags.map((tag) => {
+                  const isChecked = selectedTriggerTags.includes(tag.id)
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTriggerTags((prev) =>
+                          prev.includes(tag.id) ? prev.filter((id) => id !== tag.id) : [...prev, tag.id]
+                        )
+                      }}
+                      className={cn(
+                        'text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all cursor-pointer',
+                        isChecked
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-xs'
+                          : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {isChecked ? '✓ ' : ''}{tag.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 3. REFLECTION TEXTAREA */}
+            <div className="space-y-2 pt-2 border-t border-border">
+              <label className="text-xs font-extrabold text-foreground uppercase tracking-wider block">
+                3. Catatan Refleksi Emosi:
+              </label>
+              <textarea
+                rows={3}
+                value={reflectionText}
+                onChange={(e) => setReflectionText(e.target.value)}
+                placeholder="Tuliskan refleksi emosi, pemicu, atau pelajaran berharga hari ini..."
+                className="w-full bg-background border border-border rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-y"
+              />
+            </div>
+
+            {/* SAVE BUTTON & FEEDBACK */}
+            <div className="space-y-2">
+              <Button
+                variant="primary"
+                onClick={handleSaveDailyLog}
+                disabled={isSavingLog}
+                className="w-full text-xs font-extrabold h-10 shadow-sm"
+              >
+                {isSavingLog ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Menyimpan...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" /> Simpan Log Emosi Hari Ini
+                  </>
+                )}
+              </Button>
+
+              {saveSuccessMsg && (
+                <p className="text-xs text-emerald-400 font-bold text-center animate-in fade-in">
+                  {saveSuccessMsg}
+                </p>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* TAB 2: POLA & INSIGHT (ANALYTICS & CORRELATIONS) */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-6">
+          {/* AUTOMATED KEY INSIGHT CALLOUTS */}
+          <div className="space-y-3">
+            <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-400" /> Insight Otomatis Performa Emosi
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {analytics?.keyInsights && analytics.keyInsights.length > 0 ? (
+                analytics.keyInsights.map((insight, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 shadow-xs"
+                  >
+                    <Info className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-foreground font-semibold leading-relaxed">
+                      {insight}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="p-4 rounded-2xl bg-card border border-border text-center text-xs text-muted-foreground col-span-2">
+                  Belum ada cukup log emosi untuk menghasilkan insight otomatis.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* EMOTION CATEGORY CORRELATION TABLE */}
+          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+            <h3 className="text-base font-extrabold text-foreground border-b border-border pb-3">
+              📊 Tabel Korelasi Emosi vs Performa Trading
+            </h3>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground uppercase text-[10px] font-extrabold">
+                    <th className="py-2.5 px-3">Kategori Emosi</th>
+                    <th className="py-2.5 px-3 text-center">Hari Tercatat</th>
+                    <th className="py-2.5 px-3 text-center">Total Trade</th>
+                    <th className="py-2.5 px-3 text-center">Win Rate</th>
+                    <th className="py-2.5 px-3 text-right">Rata-rata PnL / Trade</th>
+                    <th className="py-2.5 px-3 text-right">Total Net PnL</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60 font-mono">
+                  {analytics?.categoryBreakdown && analytics.categoryBreakdown.length > 0 ? (
+                    analytics.categoryBreakdown.map((cat) => {
+                      const isProfit = cat.totalPnl >= 0
+                      return (
+                        <tr key={cat.category} className="hover:bg-muted/20 transition-colors">
+                          <td className="py-3 px-3">
+                            <span className={cn('px-2.5 py-1 rounded-full text-xs font-bold border inline-block', cat.badgeColor)}>
+                              {cat.categoryLabel}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-center font-bold text-foreground">
+                            {cat.daysCount} Hari
+                          </td>
+                          <td className="py-3 px-3 text-center text-muted-foreground">
+                            {cat.tradesCount} Trade
+                          </td>
+                          <td className="py-3 px-3 text-center font-bold">
+                            <span className={cn(cat.winRate >= 50 ? 'text-emerald-400' : 'text-amber-400')}>
+                              {cat.winRate.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold">
+                            <span className={cn(cat.avgPnlPerTrade >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                              {cat.avgPnlPerTrade >= 0 ? '+' : ''}${cat.avgPnlPerTrade.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-extrabold text-sm">
+                            <span className={cn(isProfit ? 'text-emerald-400' : 'text-red-400')}>
+                              {isProfit ? '+' : ''}${cat.totalPnl.toFixed(2)}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                        Belum ada data korelasi emosi untuk bulan ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* TRIGGER TAG LOSS RANKINGS */}
+          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+            <h3 className="text-base font-extrabold text-foreground border-b border-border pb-3">
+              📌 Ranking Tag Pemicu Paling Sering Menghasilkan Loss
+            </h3>
+
+            {analytics?.triggerTagRankings && analytics.triggerTagRankings.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {analytics.triggerTagRankings.map((tag, idx) => (
+                  <div
+                    key={tag.tagId}
+                    className="p-3.5 rounded-xl bg-muted/30 border border-border flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold font-mono text-muted-foreground w-5 text-center">
+                        #{idx + 1}
+                      </span>
+                      <div>
+                        <span className="font-extrabold text-foreground block">
+                          {tag.tagLabel}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          Tercatat {tag.occurrenceCount}x • {tag.lossTradesCount} trade loss
+                        </span>
+                      </div>
+                    </div>
+                    <span className={cn('font-bold font-mono text-sm', tag.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                      {tag.totalPnl >= 0 ? '+' : ''}${tag.totalPnl.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Belum ada tag pemicu yang tercatat untuk bulan ini.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: REFLEKSI (CATATAN EMOSI WITH FILTERS) */}
+      {activeTab === 'reflection' && (
+        <div className="space-y-5">
+          {/* FILTER BAR */}
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+              <Filter className="h-4 w-4 text-primary" />
+              <span>Filter Catatan Refleksi:</span>
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Category / Emotion Filter */}
+              <select
+                value={reflectionFilterCategory}
+                onChange={(e) => setReflectionFilterCategory(e.target.value)}
+                className="h-9 rounded-xl bg-background border border-border px-3 text-xs font-semibold"
+              >
+                <option value="all">Semua Kategori / Emosi</option>
+                <option value="positive">Kategori: Positif/Sehat</option>
+                <option value="fear">Kategori: Takut/Ragu</option>
+                <option value="greed">Kategori: Serakah-driven</option>
+                <option value="impulsive">Kategori: Impulsif/Pasca-loss</option>
+                <option value="other">Kategori: Lainnya</option>
+                {EMOTION_TAXONOMY.map((emo) => (
+                  <option key={emo.key} value={emo.key}>
+                    Emosi: {emo.emoji} {emo.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Trigger Tag Filter */}
+              <select
+                value={reflectionFilterTag}
+                onChange={(e) => setReflectionFilterTag(e.target.value)}
+                className="h-9 rounded-xl bg-background border border-border px-3 text-xs font-semibold"
+              >
+                <option value="all">Semua Tag Pemicu</option>
+                {allTriggerTags.map((tag) => (
+                  <option key={tag.id} value={tag.id}>
+                    Tag: {tag.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* REFLECTION LIST */}
+          <div className="space-y-3">
+            {allReflectionsList.length > 0 ? (
+              allReflectionsList.map((log) => {
+                const emoObj = getEmotionByKey(log.emotion)
+                return (
+                  <div
+                    key={log.logDate}
+                    className="p-4 rounded-2xl bg-card border border-border shadow-xs space-y-2 hover:border-primary/40 transition-all"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black font-mono text-foreground">
+                          {log.logDate}
+                        </span>
+                        <span className={cn('text-[10px] font-black uppercase px-2 py-0.5 rounded border', emoObj.badgeColor)}>
+                          {emoObj.emoji} {emoObj.label}
+                        </span>
+                      </div>
+
+                      {/* Trigger tags pills */}
+                      <div className="flex flex-wrap gap-1">
+                        {log.triggerTags.map((tId) => {
+                          const tagObj = allTriggerTags.find((t) => t.id === tId)
+                          return (
+                            <span key={tId} className="text-[9px] font-bold px-2 py-0.2 rounded-full bg-muted/60 text-muted-foreground border border-border">
+                              #{tagObj ? tagObj.label : tId}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-foreground leading-relaxed italic bg-muted/20 p-3 rounded-xl border border-border/50">
+                      "{log.reflectionNote}"
+                    </p>
+                  </div>
+                )
+              })
+            ) : (
+              <div className="bg-card border border-border rounded-2xl p-8 text-center space-y-2">
+                <BookOpen className="h-8 w-8 text-muted-foreground mx-auto opacity-50" />
+                <p className="text-xs text-muted-foreground font-medium">
+                  Belum ada catatan refleksi yang cocok dengan filter yang dipilih.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: PEMICU EMOSI (TRIGGER TAGS LIBRARY MANAGER) */}
+      {activeTab === 'triggers' && (
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-5">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                <Tag className="h-5 w-5 text-primary" /> Library Tag Pemicu Emosi
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Kelola preset dan pemicu emosi pribadi yang dapat Anda gunakan saat mengisi log harian.
+              </p>
+            </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsAddTagModalOpen(true)}
+              className="text-xs font-extrabold"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" /> Tambah Custom Tag
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {allTriggerTags.map((tag) => (
+              <div
+                key={tag.id}
+                className="p-3 rounded-xl bg-muted/30 border border-border flex items-center justify-between gap-2 text-xs"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Tag className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="font-bold text-foreground truncate">{tag.label}</span>
+                </div>
+                {tag.isCustom && (
+                  <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    Custom
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: TAMBAH CUSTOM TAG */}
+      {isAddTagModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-xl animate-in zoom-in-95">
+            <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+              <Plus className="h-5 w-5 text-primary" /> Tambah Tag Pemicu Custom
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Masukkan pemicu psikologis spesifik pribadi Anda (contoh: "Keluarga ganggu jam trading").
+            </p>
+
+            <Input
+              value={newCustomTagInput}
+              onChange={(e) => setNewCustomTagInput(e.target.value)}
+              placeholder="Nama tag pemicu..."
+              className="text-xs"
+              autoFocus
+            />
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddTagModalOpen(false)}
+                className="text-xs"
+              >
+                Batal
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleAddCustomTag}
+                disabled={!newCustomTagInput.trim()}
+                className="text-xs font-bold"
+              >
+                Simpan Tag
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
