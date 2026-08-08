@@ -722,6 +722,16 @@ export function TradeJournalDrawer({
                                       {bt.direction}
                                     </span>
                                     <span className="text-[10px] font-mono text-muted-foreground">{bt.volume} L</span>
+                                    {bt.status !== 'open' && bt.pnl !== undefined && (
+                                      <span
+                                        className={cn(
+                                          'text-[9px] font-black uppercase px-1.5 py-0.2 rounded text-white tracking-wider shrink-0',
+                                          bt.pnl > 0 ? 'bg-emerald-600' : bt.pnl < 0 ? 'bg-red-600' : 'bg-slate-600'
+                                        )}
+                                      >
+                                        {bt.pnl > 0 ? 'WIN' : bt.pnl < 0 ? 'LOSS' : 'BE'}
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="text-[10px] text-muted-foreground font-mono">
                                     In: {bt.openPrice} • Out: {bt.closePrice ?? 'Running'}
@@ -729,7 +739,7 @@ export function TradeJournalDrawer({
                                 </div>
                               </div>
 
-                              <span className={`font-mono text-xs font-bold ${btProfit ? 'text-emerald-400' : 'text-destructive'}`}>
+                              <span className={`font-mono text-xs font-bold ${bt.pnl && bt.pnl > 0 ? 'text-emerald-400' : bt.pnl && bt.pnl < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                                 {btPnlText}
                               </span>
                             </div>
@@ -866,6 +876,16 @@ export function TradeJournalDrawer({
                                 {trade?.direction}
                               </span>
                               <span className="text-xs font-mono text-muted-foreground">{trade?.volume} Lot</span>
+                              {trade?.status !== 'open' && trade?.pnl !== undefined && (
+                                <span
+                                  className={cn(
+                                    'text-[10px] font-black uppercase px-1.5 py-0.5 rounded text-white tracking-wider shrink-0',
+                                    trade.pnl > 0 ? 'bg-emerald-600' : trade.pnl < 0 ? 'bg-red-600' : 'bg-slate-600'
+                                  )}
+                                >
+                                  {trade.pnl > 0 ? 'WIN' : trade.pnl < 0 ? 'LOSS' : 'BE'}
+                                </span>
+                              )}
                             </div>
                             <p className="text-[11px] text-muted-foreground mt-0.5">
                               Entry: <span className="font-mono text-foreground">{trade?.openPrice ?? trade?.open_price}</span> • Exit: <span className="font-mono text-foreground">{trade?.closePrice ?? trade?.close_price ?? 'Running'}</span>

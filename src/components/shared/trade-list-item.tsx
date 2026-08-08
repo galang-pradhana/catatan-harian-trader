@@ -41,10 +41,11 @@ export function TradeListItem({
   onOpenGroup,
 }: TradeListItemProps) {
   const isBuy = trade.direction === 'buy'
-  const isProfit = (trade.pnl || 0) >= 0
+  const isProfit = (trade.pnl || 0) > 0
+  const isLoss = trade.status === 'closed' && (trade.pnl || 0) < 0
+  const isBreakeven = trade.status === 'closed' && trade.pnl === 0
   const isComplete = trade.journalStatus === 'complete'
   const isOpen = trade.status === 'open'
-  const isLoss = trade.status === 'closed' && (trade.pnl || 0) < 0
   const isManual = trade.source === 'manual'
 
   const formattedPnl = trade.pnl !== undefined
@@ -117,6 +118,22 @@ export function TradeListItem({
             <span className="text-xs text-muted-foreground font-mono font-semibold">
               {trade.volume} Lot
             </span>
+
+            {/* Solid WIN / LOSS / BE Badge */}
+            {!isOpen && trade.pnl !== undefined && (
+              <span
+                className={cn(
+                  'text-[10px] font-black uppercase px-1.5 py-0.5 rounded text-white tracking-wider shadow-xs shrink-0',
+                  trade.pnl > 0
+                    ? 'bg-emerald-600'
+                    : trade.pnl < 0
+                    ? 'bg-red-600'
+                    : 'bg-slate-600 dark:bg-slate-700'
+                )}
+              >
+                {trade.pnl > 0 ? 'WIN' : trade.pnl < 0 ? 'LOSS' : 'BE'}
+              </span>
+            )}
 
             {/* Manual Entry vs MT5 Badge */}
             {isManual ? (
@@ -206,7 +223,9 @@ export function TradeListItem({
                 ? 'text-primary'
                 : isProfit
                 ? 'text-emerald-700 dark:text-emerald-400'
-                : 'text-red-700 dark:text-red-400'
+                : isLoss
+                ? 'text-red-700 dark:text-red-400'
+                : 'text-muted-foreground'
             )}
           >
             {formattedPnl}
@@ -235,7 +254,7 @@ export function TradeListItem({
     </div>
   )
 
-  // Left Border Accent & Background Tint (Win/Loss Reserved Colors)
+  // Left Border Accent & Background Tint (Win/Loss/BE Reserved Colors)
   const cardClasses = cn(
     'block bg-card border border-l-4 rounded-2xl p-4 transition-all hover:shadow-md active:scale-[0.99] group relative overflow-hidden cursor-pointer select-none',
     // Selection highlight
@@ -245,7 +264,9 @@ export function TradeListItem({
       ? 'border-l-blue-400 bg-blue-500/[0.03]'
       : isProfit
       ? 'border-l-emerald-500 bg-emerald-500/[0.04] dark:bg-emerald-950/20'
-      : 'border-l-red-500 bg-red-500/[0.04] dark:bg-red-950/20',
+      : isLoss
+      ? 'border-l-red-500 bg-red-500/[0.04] dark:bg-red-950/20'
+      : 'border-l-slate-500 bg-slate-500/[0.03]',
     // Warning state if incomplete
     !isComplete && !isSelected && 'border-amber-400/80 dark:border-amber-500/50'
   )

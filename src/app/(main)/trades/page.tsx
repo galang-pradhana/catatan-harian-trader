@@ -17,8 +17,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   CheckSquare,
-  Layers,
-  Zap
+  Layers
 } from 'lucide-react'
 import { TradeListItem } from '@/components/shared/trade-list-item'
 import { TradeFilter, FilterState } from '@/components/shared/trade-filter'
@@ -119,36 +118,6 @@ const monthNames = [
 
 const LOCAL_STORAGE_COLLAPSE_KEY = 'trading_journal_left_panel_collapsed'
 
-function findAutoSuggestGroups(trades: Trade[]): Trade[][] {
-  const incomplete = trades.filter((t) => t.journalStatus === 'incomplete')
-  const bySymbol = new Map<string, Trade[]>()
-  incomplete.forEach((t) => {
-    const list = bySymbol.get(t.symbol) || []
-    bySymbol.set(t.symbol, [...list, t])
-  })
-
-  const results: Trade[][] = []
-  bySymbol.forEach((symTrades) => {
-    if (symTrades.length < 2) return
-    const sorted = [...symTrades].sort((a, b) => new Date(a.openTime).getTime() - new Date(b.openTime).getTime())
-    let currentCluster: Trade[] = [sorted[0]]
-
-    for (let i = 1; i < sorted.length; i++) {
-      const prevTime = new Date(currentCluster[currentCluster.length - 1].openTime).getTime()
-      const currTime = new Date(sorted[i].openTime).getTime()
-      if (currTime - prevTime <= 15 * 60 * 1000) {
-        currentCluster.push(sorted[i])
-      } else {
-        if (currentCluster.length >= 2) results.push(currentCluster)
-        currentCluster = [sorted[i]]
-      }
-    }
-    if (currentCluster.length >= 2) results.push(currentCluster)
-  })
-
-  return results
-}
-
 function TradesPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -222,12 +191,6 @@ function TradesPageContent() {
     const grouped = trades.filter((t) => t.groupId === groupId)
     if (grouped.length === 0) return
     setBatchTrades(grouped)
-    setSelectedTradeId(null)
-    setIsDrawerOpen(true)
-  }
-
-  const handleMergeSuggest = (suggestedCluster: Trade[]) => {
-    setBatchTrades(suggestedCluster)
     setSelectedTradeId(null)
     setIsDrawerOpen(true)
   }
@@ -310,11 +273,6 @@ function TradesPageContent() {
   const incompleteCount = useMemo(() => {
     return trades.filter((t) => t.journalStatus === 'incomplete').length
   }, [trades])
-
-  // Auto-suggest grouping clusters
-  const autoSuggestClusters = useMemo(() => {
-    return findAutoSuggestGroups(filteredTrades)
-  }, [filteredTrades])
 
   const hasActiveFilters = useMemo(() => {
     return (
@@ -638,32 +596,6 @@ function TradesPageContent() {
               Mode Split-Pane: {isLeftPanelCollapsed ? '1 Kolom (Penuh)' : '2 Kolom (Compounding + List)'}
             </span>
           </div>
-
-          {/* Auto-Suggest Grouping Banner */}
-          {autoSuggestClusters.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {autoSuggestClusters.map((cluster, cIdx) => (
-                <div
-                  key={`suggest-${cIdx}`}
-                  className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in"
-                >
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-amber-400 shrink-0" />
-                    <span className="text-foreground font-semibold">
-                      ⚡ <strong>{cluster.length} trade {cluster[0].symbol}</strong> ini dibuka berdekatan waktu — gabung isi jurnalnya sekaligus?
-                    </span>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleMergeSuggest(cluster)}
-                    className="bg-amber-500 hover:bg-amber-600 text-black font-bold shrink-0 text-xs py-1 h-7 shadow-xs"
-                  >
-                    Ya, Gabungkan
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
 
           {/* SPLIT-PANE CONTAINER */}
           <div className="flex flex-col lg:flex-row gap-5 items-start">
