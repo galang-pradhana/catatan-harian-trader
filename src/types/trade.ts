@@ -62,4 +62,6 @@ export interface Trade {
   mood?: MoodType
   discipline?: 'yes' | 'no'
   journal?: TradeJournal
+  source?: 'mt5_sync' | 'csv_import' | 'manual'
 }
+

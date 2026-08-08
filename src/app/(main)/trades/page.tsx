@@ -24,6 +24,7 @@ import {
 import { TradeListItem } from '@/components/shared/trade-list-item'
 import { TradeFilter, FilterState } from '@/components/shared/trade-filter'
 import { CompoundingTrackerPanel } from '@/components/shared/compounding-tracker-panel'
+import { TradeJournalDrawer } from '@/components/shared/trade-journal-drawer'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Trade } from '@/types/trade'
@@ -55,6 +56,7 @@ interface ApiTrade {
   status: 'open' | 'closed'
   session: string | null
   journal_status: 'incomplete' | 'complete'
+  source?: 'mt5_sync' | 'csv_import' | 'manual'
   trade_journal?: { mood?: string; discipline?: 'yes' | 'no' } | null
 }
 
@@ -79,8 +81,10 @@ function mapApiTrade(t: ApiTrade): Trade {
     journalStatus: t.journal_status,
     mood:          (t.trade_journal?.mood as Trade['mood']) ?? undefined,
     discipline:    (t.trade_journal?.discipline as Trade['discipline']) ?? undefined,
+    source:        t.source ?? 'mt5_sync',
   }
 }
+
 
 async function fetchTrades(filters: FilterState, page: number): Promise<{ trades: Trade[]; total: number }> {
   const params = new URLSearchParams()
@@ -123,6 +127,10 @@ function TradesPageContent() {
   }))
   const [page, setPage] = useState(1)
 
+  // Drawer & Manual Trade States
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null)
+
   // Split-Pane Collapsible State with LocalStorage Persistence
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false)
 
@@ -136,6 +144,17 @@ function TradesPageContent() {
   const today = new Date()
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
+
+  const handleOpenManualDrawer = () => {
+    setSelectedTradeId(null)
+    setIsDrawerOpen(true)
+  }
+
+  const handleSelectTrade = (id: string) => {
+    setSelectedTradeId(id)
+    setIsDrawerOpen(true)
+  }
+
 
   // Load localStorage collapse preference on mount
   useEffect(() => {
@@ -423,7 +442,14 @@ function TradesPageContent() {
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Button
+              size="sm"
+              onClick={handleOpenManualDrawer}
+              className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold shadow-sm"
+            >
+              <Plus className="h-4 w-4 mr-1" /> + Tambah Jurnal Trade
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             </Button>
@@ -433,6 +459,7 @@ function TradesPageContent() {
           </div>
         </div>
       </div>
+
 
       {/* Filter Component */}
       <TradeFilter
@@ -604,7 +631,11 @@ function TradesPageContent() {
                     {isExpanded && (
                       <div className="p-3.5 space-y-2.5 bg-background/40">
                         {itemsToRender.map((trade) => (
-                          <TradeListItem key={trade.id} trade={trade} />
+                          <TradeListItem
+                            key={trade.id}
+                            trade={trade}
+                            onSelect={() => handleSelectTrade(trade.id)}
+                          />
                         ))}
 
                         {/* Pagination / "Muat Lebih Banyak" per day (>15 trades) */}
@@ -772,7 +803,7 @@ function TradesPageContent() {
             <p className="text-xs text-muted-foreground">
               {hasActiveFilters
                 ? 'Coba sesuaikan kata kunci atau filter pencarian Anda.'
-                : 'Hubungkan akun MT5 dan pastikan EA sudah berjalan untuk mulai sync trade.'}
+                : 'Hubungkan akun MT5 atau tambahkan jurnal trade manual.'}
             </p>
           </div>
           {hasActiveFilters ? (
@@ -780,14 +811,31 @@ function TradesPageContent() {
               Reset Filter
             </Button>
           ) : (
-            <Button variant="secondary" size="sm" onClick={() => router.push('/mt5')}>
-              <Plus className="h-4 w-4 mr-1.5" /> Hubungkan MT5
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={handleOpenManualDrawer} className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold">
+                <Plus className="h-4 w-4 mr-1" /> + Tambah Jurnal Trade
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => router.push('/mt5')}>
+                Hubungkan MT5
+              </Button>
+            </div>
           )}
         </div>
       )}
+
+      {/* SLIDE-OVER TRADE JOURNAL DRAWER */}
+      <TradeJournalDrawer
+        isOpen={isDrawerOpen}
+        tradeId={selectedTradeId}
+        tradesList={filteredTrades}
+        onClose={() => setIsDrawerOpen(false)}
+        onSaved={() => refetch()}
+        onSelectTrade={(id) => setSelectedTradeId(id)}
+      />
     </div>
   )
+}
+
 }
 
 export default function TradesPage() {
