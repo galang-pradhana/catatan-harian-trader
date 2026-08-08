@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         sl, tp, pnl, commission, swap, status, session,
         journal_status, created_at,
         trade_journal (
-          id, reason_entry, mood, discipline, self_grade, updated_at
+          id, group_id, group_name, reason_entry, mood, discipline, self_grade, updated_at
         )
         `,
         { count: 'exact' }

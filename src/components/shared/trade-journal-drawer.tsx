@@ -17,8 +17,9 @@ import {
   Plus,
   Loader2,
   Check,
-  Upload,
-  AlertTriangle
+  AlertTriangle,
+  Layers,
+  Link2
 } from 'lucide-react'
 import { Trade, SelfGrade, MoodType } from '@/types/trade'
 import { analyzeTradeExit, computeTradeActualRR } from '@/utils/trade-metrics'
@@ -29,7 +30,10 @@ import { cn } from '@/lib/utils'
 
 interface TradeJournalDrawerProps {
   isOpen: boolean
-  tradeId: string | null // null for new manual trade entry
+  tradeId: string | null // null for new manual trade entry or batch mode
+  batchTrades?: Trade[] // when provided & non-empty, opens in BATCH MODE
+  initialGroupId?: string
+  initialGroupName?: string
   tradesList?: Trade[]
   onClose: () => void
   onSaved?: () => void
@@ -66,6 +70,19 @@ async function saveJournalApi(id: string, payload: Record<string, unknown>) {
   if (!res.ok) {
     const err = await res.json()
     throw new Error(err.message || 'Gagal menyimpan jurnal')
+  }
+  return res.json()
+}
+
+async function saveBatchJournalApi(payload: Record<string, unknown>) {
+  const res = await fetch('/api/trades/batch-journal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.message || 'Gagal menyimpan jurnal bersama')
   }
   return res.json()
 }
@@ -132,13 +149,21 @@ const moodOptions: Array<{ type: MoodType; label: string; emoji: string }> = [
 export function TradeJournalDrawer({
   isOpen,
   tradeId,
+  batchTrades = [],
+  initialGroupId,
+  initialGroupName,
   tradesList = [],
   onClose,
   onSaved,
   onSelectTrade,
 }: TradeJournalDrawerProps) {
   const queryClient = useQueryClient()
-  const isManualMode = tradeId === null
+  const isBatchMode = Boolean(batchTrades && batchTrades.length > 0)
+  const isManualMode = !isBatchMode && tradeId === null
+
+  // Group State for Batch Mode
+  const [groupId, setGroupId] = useState<string>('')
+  const [groupName, setGroupName] = useState<string>('')
 
   // Collapsible Section States
   const [section1Open, setSection1Open] = useState(true)
@@ -182,11 +207,11 @@ export function TradeJournalDrawer({
   const [editTp, setEditTp] = useState<string>('')
   const [isDirty, setIsDirty] = useState(false)
 
-  // Fetch Existing Trade Detail
-  const { data: trade, isLoading: isTradeLoading, isError } = useQuery({
+  // Fetch Existing Trade Detail (Single Trade Mode)
+  const { data: trade, isLoading: isTradeLoading } = useQuery({
     queryKey: ['trade-detail-drawer', tradeId],
-    queryFn: () => (tradeId ? fetchTradeDetail(tradeId) : null),
-    enabled: isOpen && !!tradeId,
+    queryFn: () => (tradeId && !isBatchMode ? fetchTradeDetail(tradeId) : null),
+    enabled: isOpen && !!tradeId && !isBatchMode,
     staleTime: 10_000,
   })
 
@@ -204,14 +229,35 @@ export function TradeJournalDrawer({
     staleTime: 60_000,
   })
 
-  // Reset form when drawer opens or tradeId changes
+  // Reset form when drawer opens or mode/trade changes
   useEffect(() => {
     if (isOpen) {
       setIsDirty(false)
       setShowExitConfirm(false)
       setPendingNextTradeId(null)
 
-      if (isManualMode) {
+      if (isBatchMode) {
+        const firstTrade = batchTrades[0]
+        setGroupId(initialGroupId || firstTrade?.groupId || '')
+        setGroupName(initialGroupName || firstTrade?.groupName || '')
+
+        // Pre-fill qualitative fields if available from first trade
+        const j = firstTrade?.journal
+        setReasonEntry(j?.reasonEntry || '')
+        setMood(j?.mood)
+        setDiscipline(j?.discipline)
+        setLessonLearned(j?.lessonLearned || '')
+        setRiskPercent(j?.riskPercent)
+        setPlannedRR(j?.plannedRR)
+        setActualRR(j?.actualRR)
+        setSelfGrade(j?.selfGrade)
+        setSelectedStrategies((j?.strategies ?? []).map((s) => s.id))
+        setSelectedMistakes((j?.mistakes ?? []).map((m) => m.id))
+        setEditSl('')
+        setEditTp('')
+      } else if (isManualMode) {
+        setGroupId('')
+        setGroupName('')
         setManualSymbol('EURUSD')
         setManualDirection('buy')
         setManualVolume('0.10')
@@ -232,6 +278,8 @@ export function TradeJournalDrawer({
         setEditSl('')
         setEditTp('')
       } else if (trade) {
+        setGroupId(trade.groupId || trade.trade_journal?.group_id || '')
+        setGroupName(trade.groupName || trade.trade_journal?.group_name || '')
         setEditSl(trade.sl ? String(trade.sl) : '')
         setEditTp(trade.tp ? String(trade.tp) : '')
         const j = trade.trade_journal
@@ -259,7 +307,7 @@ export function TradeJournalDrawer({
         setSelectedMistakes((trade.mistakes ?? []).map((m: { id: string }) => m.id))
       }
     }
-  }, [isOpen, tradeId, trade, isManualMode])
+  }, [isOpen, tradeId, isBatchMode, batchTrades, isManualMode, trade, initialGroupId, initialGroupName])
 
   // Track Form Changes (Dirty Flag)
   const markDirty = () => {
@@ -268,9 +316,9 @@ export function TradeJournalDrawer({
 
   // Calculate Trade Index in List for Prev/Next Navigation
   const currentIndex = useMemo(() => {
-    if (!tradeId || tradesList.length === 0) return -1
+    if (!tradeId || isBatchMode || tradesList.length === 0) return -1
     return tradesList.findIndex((t) => t.id === tradeId)
-  }, [tradeId, tradesList])
+  }, [tradeId, isBatchMode, tradesList])
 
   const prevTrade = useMemo(() => {
     if (currentIndex <= 0) return null
@@ -285,9 +333,9 @@ export function TradeJournalDrawer({
   // Form Completeness Math (Progress Bar)
   const completeness = useMemo(() => {
     let filled = 0
-    const totalFields = 8
-    if (isManualMode ? manualOpenPrice : editSl) filled++
-    if (isManualMode ? manualClosePrice : editTp) filled++
+    const totalFields = isBatchMode ? 7 : 8
+    if (!isBatchMode && (isManualMode ? manualOpenPrice : editSl)) filled++
+    if (!isBatchMode && (isManualMode ? manualClosePrice : editTp)) filled++
     if (reasonEntry) filled++
     if (mood) filled++
     if (discipline) filled++
@@ -297,7 +345,7 @@ export function TradeJournalDrawer({
 
     const percentage = Math.round((filled / totalFields) * 100)
     return { filled, totalFields, percentage }
-  }, [isManualMode, manualOpenPrice, manualClosePrice, editSl, editTp, reasonEntry, mood, discipline, selectedStrategies, lessonLearned, selfGrade])
+  }, [isBatchMode, isManualMode, manualOpenPrice, manualClosePrice, editSl, editTp, reasonEntry, mood, discipline, selectedStrategies, lessonLearned, selfGrade])
 
   // Save Mutations
   const saveJournalMutation = useMutation({
@@ -313,18 +361,20 @@ export function TradeJournalDrawer({
     },
   })
 
-  const uploadMutation = useMutation({
-    mutationFn: ({ file, type }: { file: File; type: 'entry' | 'exit' }) => {
-      if (!tradeId) throw new Error('Simpan trade manual terlebih dahulu sebelum upload screenshot')
-      return uploadScreenshotApi(tradeId, file, type)
+  const saveBatchMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      return saveBatchJournalApi(payload)
     },
-    onSuccess: () => {
-      toast('Screenshot berhasil diupload!', 'success')
-      queryClient.invalidateQueries({ queryKey: ['trade-detail-drawer', tradeId] })
-      queryClient.invalidateQueries({ queryKey: ['trade', tradeId] })
+    onSuccess: (data) => {
+      toast(`Jurnal berhasil disimpan untuk ${data.updated_count} trade!`, 'success')
+      setIsDirty(false)
+      queryClient.invalidateQueries({ queryKey: ['trades'] })
+      queryClient.invalidateQueries({ queryKey: ['trade-detail-drawer'] })
+      if (onSaved) onSaved()
+      onClose()
     },
     onError: (err: Error) => {
-      toast(err.message || 'Gagal upload screenshot', 'error')
+      toast(err.message || 'Gagal menyimpan jurnal bersama', 'error')
     },
   })
 
@@ -385,6 +435,25 @@ export function TradeJournalDrawer({
   // Core Save Logic
   const executeSave = async (andContinue: boolean = false) => {
     try {
+      if (isBatchMode) {
+        await saveBatchMutation.mutateAsync({
+          trade_ids: batchTrades.map((t) => t.id),
+          group_id: groupId || undefined,
+          group_name: groupName || undefined,
+          reason_entry: reasonEntry || undefined,
+          mood: mood || undefined,
+          discipline: discipline || undefined,
+          lesson_learned: lessonLearned || undefined,
+          risk_percent: riskPercent,
+          planned_rr: plannedRR,
+          actual_rr: actualRR,
+          self_grade: selfGrade || undefined,
+          strategy_ids: selectedStrategies,
+          mistake_tag_ids: selectedMistakes,
+        })
+        return
+      }
+
       let targetId = tradeId
 
       // Case A: Create Manual Trade First if new
@@ -411,7 +480,7 @@ export function TradeJournalDrawer({
 
       if (!targetId) throw new Error('ID Trade tidak valid')
 
-      // Case B: Save Journal Details
+      // Case B: Save Single Journal Details
       await saveJournalMutation.mutateAsync({
         id: targetId,
         payload: {
@@ -434,7 +503,6 @@ export function TradeJournalDrawer({
       setIsDirty(false)
 
       if (andContinue) {
-        // Find next incomplete trade in tradesList
         const nextIncomplete = tradesList.find(
           (t, idx) => idx > currentIndex && t.journalStatus === 'incomplete'
         ) || tradesList.find((t) => t.journalStatus === 'incomplete' && t.id !== targetId)
@@ -487,6 +555,8 @@ export function TradeJournalDrawer({
     }
   }
 
+  const isSaving = saveJournalMutation.isPending || saveBatchMutation.isPending
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop Overlay */}
@@ -495,8 +565,8 @@ export function TradeJournalDrawer({
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
       />
 
-      {/* Slide-over Panel (Desktop Right 560px, Mobile Bottom Sheet) */}
-      <aside className="fixed inset-y-0 right-0 z-50 w-full md:max-w-[560px] bg-card border-l border-border shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      {/* Slide-over Panel (Desktop Right 580px, Mobile Bottom Sheet) */}
+      <aside className="fixed inset-y-0 right-0 z-50 w-full md:max-w-[580px] bg-card border-l border-border shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
         {/* ========================================================================= */}
         {/* 📌 STICKY HEADER */}
         {/* ========================================================================= */}
@@ -505,7 +575,9 @@ export function TradeJournalDrawer({
             {/* Title & Ticket */}
             <div className="flex items-center gap-2 min-w-0">
               <h2 className="text-base font-extrabold text-foreground tracking-tight truncate">
-                {isManualMode
+                {isBatchMode
+                  ? `🔗 Isi Jurnal Bersama — ${batchTrades.length} Trade`
+                  : isManualMode
                   ? '+ Tambah Jurnal Trade (Manual)'
                   : `Jurnal #${trade?.mt5TicketId || trade?.mt5_ticket_id} (${trade?.symbol})`}
               </h2>
@@ -516,7 +588,7 @@ export function TradeJournalDrawer({
 
             {/* Prev/Next & Close */}
             <div className="flex items-center gap-1.5 shrink-0">
-              {!isManualMode && (
+              {!isManualMode && !isBatchMode && (
                 <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/60">
                   <Button
                     variant="ghost"
@@ -560,13 +632,32 @@ export function TradeJournalDrawer({
         {/* 📜 DRAWER BODY (SCROLLABLE FORM) */}
         {/* ========================================================================= */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          {isTradeLoading && !isManualMode ? (
+          {isTradeLoading && !isManualMode && !isBatchMode ? (
             <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
               <Loader2 className="h-8 w-8 text-primary animate-spin" />
               <p className="text-xs text-muted-foreground">Memuat detail trade...</p>
             </div>
           ) : (
             <>
+              {/* Optional Group Name Field (for Batch Mode or Grouped Trades) */}
+              {isBatchMode && (
+                <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/30 space-y-1.5">
+                  <label className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                    <Link2 className="h-3.5 w-3.5 text-purple-400" />
+                    <span>Nama Grup / Sesi (Opsional)</span>
+                  </label>
+                  <Input
+                    value={groupName}
+                    onChange={(e) => { setGroupName(e.target.value); markDirty() }}
+                    placeholder="Contoh: Breakout pagi XAUUSD — overconfident habis WD"
+                    className="text-xs font-semibold bg-background border-purple-500/40 focus:border-purple-400"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Label nama grup memudahkan pencarian &amp; identifikasi kelompok trade ini di daftar riwayat.
+                  </p>
+                </div>
+              )}
+
               {/* SECTION 1: DATA PERDAGANGAN */}
               <div className="bg-card/70 border border-border/80 rounded-2xl p-4 sm:p-5 space-y-4">
                 <div
@@ -578,9 +669,15 @@ export function TradeJournalDrawer({
                       <BarChart3 className="h-4 w-4 text-amber-500" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-extrabold text-foreground">1. Data Perdagangan</h3>
+                      <h3 className="text-sm font-extrabold text-foreground">
+                        {isBatchMode ? `1. Ringkasan Eksekusi (${batchTrades.length} Trade)` : '1. Data Perdagangan'}
+                      </h3>
                       <p className="text-[11px] text-muted-foreground">
-                        {isManualMode ? 'Input manual parameter harga & waktu' : 'Data eksekusi dari MT5'}
+                        {isBatchMode
+                          ? 'Daftar eksekusi trade individual yang dipilih'
+                          : isManualMode
+                          ? 'Input manual parameter harga & waktu'
+                          : 'Data eksekusi dari MT5'}
                       </p>
                     </div>
                   </div>
@@ -588,8 +685,59 @@ export function TradeJournalDrawer({
 
                 {section1Open && (
                   <div className="space-y-4">
-                    {/* If Manual Mode -> Full Editable Fields */}
-                    {isManualMode ? (
+                    {/* BATCH MODE: Concise Read-Only Table / List of Selected Trades */}
+                    {isBatchMode ? (
+                      <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                        {batchTrades.map((bt) => {
+                          const btBuy = bt.direction === 'buy'
+                          const btProfit = (bt.pnl || 0) >= 0
+                          const btPnlText = bt.pnl !== undefined ? `${btProfit ? '+' : ''}$${bt.pnl.toFixed(2)}` : 'Running'
+
+                          return (
+                            <div
+                              key={bt.id}
+                              className="p-2.5 rounded-xl bg-muted/30 border border-border/60 flex items-center justify-between gap-2 text-xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {/* Neutral Buy/Sell Icon */}
+                                <div
+                                  className={cn(
+                                    'h-7 w-7 rounded-lg flex items-center justify-center font-bold text-[10px] shrink-0',
+                                    btBuy
+                                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                                      : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                  )}
+                                >
+                                  {btBuy ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-foreground truncate">{bt.symbol}</span>
+                                    <span
+                                      className={cn(
+                                        'text-[9px] font-bold uppercase px-1 py-0.2 rounded',
+                                        btBuy ? 'bg-blue-500/20 text-blue-300' : 'bg-amber-500/20 text-amber-300'
+                                      )}
+                                    >
+                                      {bt.direction}
+                                    </span>
+                                    <span className="text-[10px] font-mono text-muted-foreground">{bt.volume} L</span>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground font-mono">
+                                    In: {bt.openPrice} • Out: {bt.closePrice ?? 'Running'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <span className={`font-mono text-xs font-bold ${btProfit ? 'text-emerald-400' : 'text-destructive'}`}>
+                                {btPnlText}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : isManualMode ? (
+                      /* MANUAL MODE: Editable Form */
                       <div className="space-y-3 text-xs">
                         <div className="grid grid-cols-2 gap-3">
                           <div>
@@ -605,13 +753,14 @@ export function TradeJournalDrawer({
                           <div>
                             <label className="font-bold text-muted-foreground block mb-1">Arah (Buy / Sell)</label>
                             <div className="flex gap-2">
+                              {/* Neutral Blue for Buy, Amber for Sell (NOT Red/Green) */}
                               <button
                                 type="button"
                                 onClick={() => { setManualDirection('buy'); markDirty() }}
                                 className={cn(
                                   'flex-1 py-2 rounded-xl font-bold border transition-all',
                                   manualDirection === 'buy'
-                                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                    ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
                                     : 'bg-muted/40 border-border text-muted-foreground'
                                 )}
                               >
@@ -623,7 +772,7 @@ export function TradeJournalDrawer({
                                 className={cn(
                                   'flex-1 py-2 rounded-xl font-bold border transition-all',
                                   manualDirection === 'sell'
-                                    ? 'bg-destructive/20 text-destructive border-destructive/40'
+                                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                                     : 'bg-muted/40 border-border text-muted-foreground'
                                 )}
                               >
@@ -691,15 +840,16 @@ export function TradeJournalDrawer({
                         </div>
                       </div>
                     ) : (
-                      /* Read-Only MT5 Executed Summary */
+                      /* SINGLE TRADE READ-ONLY MT5 SUMMARY */
                       <div className="p-3.5 rounded-xl bg-muted/20 border border-border/60 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
+                          {/* Neutral Blue for Buy, Amber for Sell */}
                           <div
                             className={cn(
                               'h-10 w-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0',
                               isBuy
-                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                : 'bg-destructive/15 text-destructive border border-destructive/30'
+                                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                                : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                             )}
                           >
                             {isBuy ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownRight className="h-5 w-5" />}
@@ -707,7 +857,12 @@ export function TradeJournalDrawer({
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-extrabold text-foreground text-sm">{trade?.symbol}</span>
-                              <span className={cn('text-[10px] font-bold uppercase px-1.5 py-0.5 rounded', isBuy ? 'bg-emerald-500/20 text-emerald-400' : 'bg-destructive/20 text-destructive')}>
+                              <span
+                                className={cn(
+                                  'text-[10px] font-bold uppercase px-1.5 py-0.5 rounded',
+                                  isBuy ? 'bg-blue-500/20 text-blue-300' : 'bg-amber-500/20 text-amber-300'
+                                )}
+                              >
                                 {trade?.direction}
                               </span>
                               <span className="text-xs font-mono text-muted-foreground">{trade?.volume} Lot</span>
@@ -727,31 +882,33 @@ export function TradeJournalDrawer({
                       </div>
                     )}
 
-                    {/* Editable SL & TP */}
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <div>
-                        <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Stop Loss (SL)</label>
-                        <Input
-                          type="number"
-                          step="any"
-                          value={editSl}
-                          onChange={(e) => { setEditSl(e.target.value); markDirty() }}
-                          placeholder="Contoh: 1.0850"
-                          className="font-mono text-xs h-8"
-                        />
+                    {/* Editable SL & TP (only in single trade mode) */}
+                    {!isBatchMode && (
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Stop Loss (SL)</label>
+                          <Input
+                            type="number"
+                            step="any"
+                            value={editSl}
+                            onChange={(e) => { setEditSl(e.target.value); markDirty() }}
+                            placeholder="Contoh: 1.0850"
+                            className="font-mono text-xs h-8"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Take Profit (TP)</label>
+                          <Input
+                            type="number"
+                            step="any"
+                            value={editTp}
+                            onChange={(e) => { setEditTp(e.target.value); markDirty() }}
+                            placeholder="Contoh: 1.0950"
+                            className="font-mono text-xs h-8"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Take Profit (TP)</label>
-                        <Input
-                          type="number"
-                          step="any"
-                          value={editTp}
-                          onChange={(e) => { setEditTp(e.target.value); markDirty() }}
-                          placeholder="Contoh: 1.0950"
-                          className="font-mono text-xs h-8"
-                        />
-                      </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -779,14 +936,14 @@ export function TradeJournalDrawer({
                       <div className="p-2.5 rounded-xl bg-card border border-border space-y-0.5">
                         <span className="text-[9px] font-bold text-muted-foreground uppercase block">Planned R:R</span>
                         <span className="font-mono font-bold text-xs text-amber-400">
-                          {exitInfo.plannedRR !== '-' ? `1:${exitInfo.plannedRR}` : '-'}
+                          {!isBatchMode && exitInfo.plannedRR !== '-' ? `1:${exitInfo.plannedRR}` : '-'}
                         </span>
                       </div>
 
                       <div className="p-2.5 rounded-xl bg-card border border-border space-y-0.5">
                         <span className="text-[9px] font-bold text-muted-foreground uppercase block">Eksekusi Exit</span>
-                        <span className={cn('font-bold text-[10px] px-2 py-0.5 rounded-full border inline-block', exitInfo.exitBadgeColor)}>
-                          {exitInfo.exitTypeLabel}
+                        <span className={cn('font-bold text-[10px] px-2 py-0.5 rounded-full border inline-block', isBatchMode ? 'bg-muted border-border text-muted-foreground' : exitInfo.exitBadgeColor)}>
+                          {isBatchMode ? 'Multiple Exit' : exitInfo.exitTypeLabel}
                         </span>
                       </div>
 
@@ -803,23 +960,25 @@ export function TradeJournalDrawer({
                       </div>
                     </div>
 
-                    {/* Horizontal R:R Gauge */}
-                    <div className="p-3.5 rounded-xl bg-card border border-border space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-mono font-bold">
-                        <span className="text-destructive">🔴 SL: {slP ?? '-'}</span>
-                        <span className="text-foreground">⚪ Entry: {openP || '-'}</span>
-                        <span className="text-emerald-400">🟢 TP: {tpP ?? '-'}</span>
-                      </div>
+                    {/* Horizontal R:R Gauge (in single trade mode) */}
+                    {!isBatchMode && (
+                      <div className="p-3.5 rounded-xl bg-card border border-border space-y-2">
+                        <div className="flex items-center justify-between text-[11px] font-mono font-bold">
+                          <span className="text-destructive">🔴 SL: {slP ?? '-'}</span>
+                          <span className="text-foreground">⚪ Entry: {openP || '-'}</span>
+                          <span className="text-emerald-400">🟢 TP: {tpP ?? '-'}</span>
+                        </div>
 
-                      <div className="relative w-full h-3 bg-muted/60 rounded-full overflow-hidden flex">
-                        <div className="w-1/2 h-full bg-destructive/30 border-r border-background" />
-                        <div className="w-1/2 h-full bg-emerald-500/30" />
-                        <div
-                          className="absolute top-0 bottom-0 w-2 bg-amber-400 rounded-full shadow-md -ml-1 transition-all duration-300"
-                          style={{ left: `${actualMarkerPct}%` }}
-                        />
+                        <div className="relative w-full h-3 bg-muted/60 rounded-full overflow-hidden flex">
+                          <div className="w-1/2 h-full bg-destructive/30 border-r border-background" />
+                          <div className="w-1/2 h-full bg-emerald-500/30" />
+                          <div
+                            className="absolute top-0 bottom-0 w-2 bg-amber-400 rounded-full shadow-md -ml-1 transition-all duration-300"
+                            style={{ left: `${actualMarkerPct}%` }}
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1015,26 +1174,40 @@ export function TradeJournalDrawer({
           </Button>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={saveJournalMutation.isPending}
-              onClick={() => executeSave(false)}
-              className="text-xs font-bold border-border hover:bg-muted"
-            >
-              {saveJournalMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
-              Simpan
-            </Button>
+            {isBatchMode ? (
+              <Button
+                size="sm"
+                disabled={isSaving}
+                onClick={() => executeSave(false)}
+                className="text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-black shadow-md"
+              >
+                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                Simpan untuk Semua ({batchTrades.length} Trade)
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSaving}
+                  onClick={() => executeSave(false)}
+                  className="text-xs font-bold border-border hover:bg-muted"
+                >
+                  {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+                  Simpan
+                </Button>
 
-            <Button
-              size="sm"
-              disabled={saveJournalMutation.isPending}
-              onClick={() => executeSave(true)}
-              className="text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-black shadow-md"
-            >
-              {saveJournalMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
-              Simpan &amp; Lanjut →
-            </Button>
+                <Button
+                  size="sm"
+                  disabled={isSaving}
+                  onClick={() => executeSave(true)}
+                  className="text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-black shadow-md"
+                >
+                  {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                  Simpan &amp; Lanjut →
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </aside>

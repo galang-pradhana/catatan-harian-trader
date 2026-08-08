@@ -2,14 +2,26 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, ArrowDownRight, CheckCircle2, AlertCircle, ShieldAlert, ShieldCheck } from 'lucide-react'
+import {
+  ArrowUpRight,
+  ArrowDownRight,
+  CheckCircle2,
+  AlertCircle,
+  ShieldAlert,
+  ShieldCheck,
+  Link2
+} from 'lucide-react'
 import { Trade } from '@/types/trade'
 import { analyzeTradeExit } from '@/utils/trade-metrics'
 import { cn } from '@/lib/utils'
 
 export interface TradeListItemProps {
   trade: Trade
+  isMultiSelectMode?: boolean
+  isSelected?: boolean
+  onToggleSelect?: (trade: Trade) => void
   onSelect?: (trade: Trade) => void
+  onOpenGroup?: (groupId: string) => void
 }
 
 const moodEmojis: Record<string, { label: string; emoji: string }> = {
@@ -20,7 +32,14 @@ const moodEmojis: Record<string, { label: string; emoji: string }> = {
   greedy:    { label: 'Serakah',   emoji: '🤑' },
 }
 
-export function TradeListItem({ trade, onSelect }: TradeListItemProps) {
+export function TradeListItem({
+  trade,
+  isMultiSelectMode = false,
+  isSelected = false,
+  onToggleSelect,
+  onSelect,
+  onOpenGroup,
+}: TradeListItemProps) {
   const isBuy = trade.direction === 'buy'
   const isProfit = (trade.pnl || 0) >= 0
   const isComplete = trade.journalStatus === 'complete'
@@ -46,14 +65,30 @@ export function TradeListItem({ trade, onSelect }: TradeListItemProps) {
 
   const content = (
     <div className="flex items-center justify-between gap-3">
-      {/* Left: Symbol, Direction, & Discipline/Mood/Source Badges */}
+      {/* Left: Checkbox (in multi-select), Direction Icon, Symbol, & Badges */}
       <div className="flex items-center gap-3">
+        {/* Multi-Select Checkbox */}
+        {isMultiSelectMode && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center justify-center pr-1 shrink-0"
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggleSelect?.(trade)}
+              className="h-4 w-4 rounded border-border text-primary cursor-pointer accent-primary focus:ring-1 focus:ring-primary"
+            />
+          </div>
+        )}
+
+        {/* Direction Icon (Neutral Colors: Blue for Buy, Amber for Sell - NOT Red/Green) */}
         <div
           className={cn(
-            'h-10 w-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0',
+            'h-10 w-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-colors',
             isBuy
-              ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
-              : 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40'
+              ? 'bg-blue-500/10 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+              : 'bg-amber-500/10 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-500/30'
           )}
         >
           {isBuy ? (
@@ -68,12 +103,13 @@ export function TradeListItem({ trade, onSelect }: TradeListItemProps) {
             <span className="font-bold text-foreground text-sm group-hover:text-primary transition-colors">
               {trade.symbol}
             </span>
+            {/* Position Direction Badge (Neutral colors) */}
             <span
               className={cn(
                 'text-[10px] font-bold uppercase px-1.5 py-0.5 rounded',
                 isBuy
-                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
-                  : 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300'
+                  ? 'bg-blue-500/15 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
+                  : 'bg-amber-500/15 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
               )}
             >
               {trade.direction}
@@ -91,6 +127,24 @@ export function TradeListItem({ trade, onSelect }: TradeListItemProps) {
               <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border">
                 MT5 Executed
               </span>
+            )}
+
+            {/* Grouped Badge (if belongs to a batch group) */}
+            {(trade.groupId || trade.groupName) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  if (onOpenGroup && trade.groupId) {
+                    e.stopPropagation()
+                    onOpenGroup(trade.groupId)
+                  }
+                }}
+                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 hover:bg-purple-500/25 transition-all cursor-pointer"
+                title="Klik untuk melihat / mengedit jurnal kelompok ini"
+              >
+                <Link2 className="h-3 w-3 text-purple-400" />
+                <span>{trade.groupName || 'Grouped'}</span>
+              </button>
             )}
 
             {/* R:R Badge */}
@@ -136,7 +190,7 @@ export function TradeListItem({ trade, onSelect }: TradeListItemProps) {
       </div>
 
       {/* Right: PnL & Completeness Status */}
-      <div className="text-right flex flex-col items-end gap-1">
+      <div className="text-right flex flex-col items-end gap-1 shrink-0">
         <div className="flex items-center gap-1.5">
           {isOpen && (
             <span className="relative flex h-2 w-2">
@@ -144,6 +198,7 @@ export function TradeListItem({ trade, onSelect }: TradeListItemProps) {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
             </span>
           )}
+          {/* Win/Loss Colors Reserved for PnL */}
           <span
             className={cn(
               'font-mono font-bold text-sm sm:text-base',
@@ -180,29 +235,32 @@ export function TradeListItem({ trade, onSelect }: TradeListItemProps) {
     </div>
   )
 
+  // Left Border Accent & Background Tint (Win/Loss Reserved Colors)
   const cardClasses = cn(
-    'block bg-card border rounded-2xl p-4 transition-all hover:shadow-md active:scale-[0.99] group relative overflow-hidden cursor-pointer select-none',
+    'block bg-card border border-l-4 rounded-2xl p-4 transition-all hover:shadow-md active:scale-[0.99] group relative overflow-hidden cursor-pointer select-none',
+    // Selection highlight
+    isSelected && 'ring-2 ring-primary border-primary/50 bg-primary/10',
+    // Left Border Accent (3-4px) & Background Tint
     isOpen
-      ? 'border-primary/40 bg-primary/5'
-      : !isComplete
-      ? 'border-amber-400 dark:border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20'
-      : isLoss
-      ? 'border-border border-l-4 border-l-red-600 dark:border-l-red-500'
-      : 'border-border hover:border-primary/40'
+      ? 'border-l-blue-400 bg-blue-500/[0.03]'
+      : isProfit
+      ? 'border-l-emerald-500 bg-emerald-500/[0.04] dark:bg-emerald-950/20'
+      : 'border-l-red-500 bg-red-500/[0.04] dark:bg-red-950/20',
+    // Warning state if incomplete
+    !isComplete && !isSelected && 'border-amber-400/80 dark:border-amber-500/50'
   )
 
-  if (onSelect) {
-    return (
-      <div onClick={() => onSelect(trade)} className={cardClasses}>
-        {content}
-      </div>
-    )
+  const handleClick = () => {
+    if (isMultiSelectMode) {
+      onToggleSelect?.(trade)
+    } else if (onSelect) {
+      onSelect(trade)
+    }
   }
 
   return (
-    <Link href={`/trades/${trade.id}`} className={cardClasses}>
+    <div onClick={handleClick} className={cardClasses}>
       {content}
-    </Link>
+    </div>
   )
 }
-

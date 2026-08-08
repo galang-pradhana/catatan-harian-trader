@@ -27,6 +27,8 @@ export interface TradeScreenshot {
 
 export interface TradeJournal {
   tradeId: string
+  groupId?: string
+  groupName?: string
   reasonEntry?: string
   mood?: MoodType
   discipline?: 'yes' | 'no'
@@ -61,6 +63,8 @@ export interface Trade {
   journalStatus: JournalStatus
   mood?: MoodType
   discipline?: 'yes' | 'no'
+  groupId?: string
+  groupName?: string
   journal?: TradeJournal
   source?: 'mt5_sync' | 'csv_import' | 'manual'
 }

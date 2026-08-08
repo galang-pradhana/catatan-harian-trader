@@ -27,7 +27,7 @@ export async function GET(
         sl, tp, pnl, commission, swap, status, session,
         journal_status, created_at, updated_at,
         trade_journal (
-          id, reason_entry, mood, discipline, lesson_learned,
+          id, group_id, group_name, reason_entry, mood, discipline, lesson_learned,
           risk_percent, planned_rr, actual_rr, self_grade,
           created_at, updated_at
         ),

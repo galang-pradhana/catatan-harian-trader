@@ -16,10 +16,9 @@ import {
   AlertCircle,
   PanelLeftClose,
   PanelLeftOpen,
-  TrendingUp,
-  TrendingDown,
-  CheckCircle2,
-  Layers
+  CheckSquare,
+  Layers,
+  Zap
 } from 'lucide-react'
 import { TradeListItem } from '@/components/shared/trade-list-item'
 import { TradeFilter, FilterState } from '@/components/shared/trade-filter'
@@ -57,7 +56,12 @@ interface ApiTrade {
   session: string | null
   journal_status: 'incomplete' | 'complete'
   source?: 'mt5_sync' | 'csv_import' | 'manual'
-  trade_journal?: { mood?: string; discipline?: 'yes' | 'no' } | null
+  trade_journal?: {
+    mood?: string
+    discipline?: 'yes' | 'no'
+    group_id?: string
+    group_name?: string
+  } | null
 }
 
 function mapApiTrade(t: ApiTrade): Trade {
@@ -81,10 +85,11 @@ function mapApiTrade(t: ApiTrade): Trade {
     journalStatus: t.journal_status,
     mood:          (t.trade_journal?.mood as Trade['mood']) ?? undefined,
     discipline:    (t.trade_journal?.discipline as Trade['discipline']) ?? undefined,
+    groupId:       t.trade_journal?.group_id ?? undefined,
+    groupName:     t.trade_journal?.group_name ?? undefined,
     source:        t.source ?? 'mt5_sync',
   }
 }
-
 
 async function fetchTrades(filters: FilterState, page: number): Promise<{ trades: Trade[]; total: number }> {
   const params = new URLSearchParams()
@@ -114,6 +119,36 @@ const monthNames = [
 
 const LOCAL_STORAGE_COLLAPSE_KEY = 'trading_journal_left_panel_collapsed'
 
+function findAutoSuggestGroups(trades: Trade[]): Trade[][] {
+  const incomplete = trades.filter((t) => t.journalStatus === 'incomplete')
+  const bySymbol = new Map<string, Trade[]>()
+  incomplete.forEach((t) => {
+    const list = bySymbol.get(t.symbol) || []
+    bySymbol.set(t.symbol, [...list, t])
+  })
+
+  const results: Trade[][] = []
+  bySymbol.forEach((symTrades) => {
+    if (symTrades.length < 2) return
+    const sorted = [...symTrades].sort((a, b) => new Date(a.openTime).getTime() - new Date(b.openTime).getTime())
+    let currentCluster: Trade[] = [sorted[0]]
+
+    for (let i = 1; i < sorted.length; i++) {
+      const prevTime = new Date(currentCluster[currentCluster.length - 1].openTime).getTime()
+      const currTime = new Date(sorted[i].openTime).getTime()
+      if (currTime - prevTime <= 15 * 60 * 1000) {
+        currentCluster.push(sorted[i])
+      } else {
+        if (currentCluster.length >= 2) results.push(currentCluster)
+        currentCluster = [sorted[i]]
+      }
+    }
+    if (currentCluster.length >= 2) results.push(currentCluster)
+  })
+
+  return results
+}
+
 function TradesPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -127,6 +162,11 @@ function TradesPageContent() {
   }))
   const [page, setPage] = useState(1)
 
+  // Multi-Select & Batch Mode States
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState<boolean>(false)
+  const [selectedTradeIds, setSelectedTradeIds] = useState<string[]>([])
+  const [batchTrades, setBatchTrades] = useState<Trade[]>([])
+
   // Drawer & Manual Trade States
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null)
@@ -134,7 +174,7 @@ function TradesPageContent() {
   // Split-Pane Collapsible State with LocalStorage Persistence
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false)
 
-  // Accordion State per Date (e.g. { "Selasa, 4 Agustus 2026": true })
+  // Accordion State per Date
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
 
   // Per-date pagination state for accordion (>15 items)
@@ -146,15 +186,51 @@ function TradesPageContent() {
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
 
   const handleOpenManualDrawer = () => {
+    setBatchTrades([])
     setSelectedTradeId(null)
     setIsDrawerOpen(true)
   }
 
   const handleSelectTrade = (id: string) => {
+    setBatchTrades([])
     setSelectedTradeId(id)
     setIsDrawerOpen(true)
   }
 
+  const toggleMultiSelectMode = () => {
+    setIsMultiSelectMode((prev) => {
+      if (prev) setSelectedTradeIds([])
+      return !prev
+    })
+  }
+
+  const handleToggleSelectTrade = (trade: Trade) => {
+    setSelectedTradeIds((prev) =>
+      prev.includes(trade.id) ? prev.filter((id) => id !== trade.id) : [...prev, trade.id]
+    )
+  }
+
+  const handleOpenBatchDrawer = () => {
+    const selected = trades.filter((t) => selectedTradeIds.includes(t.id))
+    if (selected.length === 0) return
+    setBatchTrades(selected)
+    setSelectedTradeId(null)
+    setIsDrawerOpen(true)
+  }
+
+  const handleOpenGroupDrawer = (groupId: string) => {
+    const grouped = trades.filter((t) => t.groupId === groupId)
+    if (grouped.length === 0) return
+    setBatchTrades(grouped)
+    setSelectedTradeId(null)
+    setIsDrawerOpen(true)
+  }
+
+  const handleMergeSuggest = (suggestedCluster: Trade[]) => {
+    setBatchTrades(suggestedCluster)
+    setSelectedTradeId(null)
+    setIsDrawerOpen(true)
+  }
 
   // Load localStorage collapse preference on mount
   useEffect(() => {
@@ -163,7 +239,6 @@ function TradesPageContent() {
       if (saved !== null) {
         setIsLeftPanelCollapsed(saved === 'true')
       } else {
-        // Default collapse on mobile (<1024px)
         setIsLeftPanelCollapsed(window.innerWidth < 1024)
       }
     } catch {
@@ -235,6 +310,11 @@ function TradesPageContent() {
   const incompleteCount = useMemo(() => {
     return trades.filter((t) => t.journalStatus === 'incomplete').length
   }, [trades])
+
+  // Auto-suggest grouping clusters
+  const autoSuggestClusters = useMemo(() => {
+    return findAutoSuggestGroups(filteredTrades)
+  }, [filteredTrades])
 
   const hasActiveFilters = useMemo(() => {
     return (
@@ -317,7 +397,6 @@ function TradesPageContent() {
   useEffect(() => {
     if (groupedTrades.length > 0) {
       setExpandedDates((prev) => {
-        // If state already has entries, preserve them; otherwise expand the first date (latest)
         if (Object.keys(prev).length === 0) {
           return { [groupedTrades[0].dateLabel]: true }
         }
@@ -375,7 +454,6 @@ function TradesPageContent() {
     router.replace(`/trades?${params.toString()}`)
   }
 
-  // Calendar Click Date handler -> filter list by date & switch to list view
   const handleCalendarDayClick = (dateStr: string) => {
     setFilters((prev) => ({ ...prev, date: dateStr }))
     setPage(1)
@@ -460,7 +538,6 @@ function TradesPageContent() {
         </div>
       </div>
 
-
       {/* Filter Component */}
       <TradeFilter
         filters={filters}
@@ -517,33 +594,76 @@ function TradesPageContent() {
         </div>
       )}
 
-      {/* VIEW 1: LIST VIEW (Requirement 1 & 2 & 3: SPLIT-PANE LAYOUT) */}
+      {/* VIEW 1: LIST VIEW */}
       {activeView === 'list' && !isLoading && !isError && filteredTrades.length > 0 && (
         <div className="relative">
-          {/* Top Bar Split-Pane Toggle Button */}
-          <div className="flex items-center justify-between mb-3">
-            <button
-              type="button"
-              onClick={toggleLeftPanel}
-              className="inline-flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-card border border-border px-3 py-1.5 rounded-xl shadow-sm transition-all cursor-pointer"
-            >
-              {isLeftPanelCollapsed ? (
-                <>
-                  <PanelLeftOpen className="h-4 w-4 text-amber-400" />
-                  <span>Buka Compounding Tracker</span>
-                </>
-              ) : (
-                <>
-                  <PanelLeftClose className="h-4 w-4 text-amber-400" />
-                  <span>Sembunyikan Panel Tracker</span>
-                </>
-              )}
-            </button>
+          {/* Top Bar Actions: Split-Pane Toggle & Multi-Select Toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={toggleLeftPanel}
+                className="inline-flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-card border border-border px-3 py-1.5 rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                {isLeftPanelCollapsed ? (
+                  <>
+                    <PanelLeftOpen className="h-4 w-4 text-amber-400" />
+                    <span>Buka Compounding Tracker</span>
+                  </>
+                ) : (
+                  <>
+                    <PanelLeftClose className="h-4 w-4 text-amber-400" />
+                    <span>Sembunyikan Panel Tracker</span>
+                  </>
+                )}
+              </button>
+
+              {/* Multi-Select Toggle Button */}
+              <button
+                type="button"
+                onClick={toggleMultiSelectMode}
+                className={cn(
+                  'inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border shadow-sm transition-all cursor-pointer',
+                  isMultiSelectMode
+                    ? 'bg-amber-500 text-black border-amber-500 font-extrabold shadow-md'
+                    : 'bg-card border-border text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <CheckSquare className="h-4 w-4" />
+                <span>{isMultiSelectMode ? 'Mode Pilih Aktif' : 'Mode Pilih'}</span>
+              </button>
+            </div>
 
             <span className="text-[11px] text-muted-foreground font-mono">
               Mode Split-Pane: {isLeftPanelCollapsed ? '1 Kolom (Penuh)' : '2 Kolom (Compounding + List)'}
             </span>
           </div>
+
+          {/* Auto-Suggest Grouping Banner */}
+          {autoSuggestClusters.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {autoSuggestClusters.map((cluster, cIdx) => (
+                <div
+                  key={`suggest-${cIdx}`}
+                  className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in"
+                >
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-amber-400 shrink-0" />
+                    <span className="text-foreground font-semibold">
+                      ⚡ <strong>{cluster.length} trade {cluster[0].symbol}</strong> ini dibuka berdekatan waktu — gabung isi jurnalnya sekaligus?
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => handleMergeSuggest(cluster)}
+                    className="bg-amber-500 hover:bg-amber-600 text-black font-bold shrink-0 text-xs py-1 h-7 shadow-xs"
+                  >
+                    Ya, Gabungkan
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* SPLIT-PANE CONTAINER */}
           <div className="flex flex-col lg:flex-row gap-5 items-start">
@@ -634,7 +754,11 @@ function TradesPageContent() {
                           <TradeListItem
                             key={trade.id}
                             trade={trade}
+                            isMultiSelectMode={isMultiSelectMode}
+                            isSelected={selectedTradeIds.includes(trade.id)}
+                            onToggleSelect={handleToggleSelectTrade}
                             onSelect={() => handleSelectTrade(trade.id)}
+                            onOpenGroup={handleOpenGroupDrawer}
                           />
                         ))}
 
@@ -689,7 +813,7 @@ function TradesPageContent() {
         </div>
       )}
 
-      {/* VIEW 2: CALENDAR VIEW (UNTOUCHED) */}
+      {/* VIEW 2: CALENDAR VIEW */}
       {activeView === 'calendar' && !isLoading && (
         <div className="bg-card border border-border rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between border-b border-border pb-4">
@@ -823,14 +947,51 @@ function TradesPageContent() {
         </div>
       )}
 
-      {/* SLIDE-OVER TRADE JOURNAL DRAWER */}
+      {/* FLOATING ACTION BAR FOR MULTI-SELECT */}
+      {selectedTradeIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-card/95 border border-border shadow-2xl backdrop-blur-md rounded-2xl px-5 py-3 flex items-center gap-4 text-xs font-bold animate-in slide-in-from-bottom duration-200">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-foreground font-extrabold">{selectedTradeIds.length} Trade Dipilih</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleOpenBatchDrawer}
+              className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold shadow-md text-xs"
+            >
+              <Layers className="h-4 w-4 mr-1.5" /> Isi Jurnal Bersama
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelectedTradeIds([])}
+              className="text-muted-foreground hover:text-foreground font-bold text-xs"
+            >
+              Batal
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* SLIDE-OVER TRADE JOURNAL DRAWER (Supports Single, Manual, and Batch Modes) */}
       <TradeJournalDrawer
         isOpen={isDrawerOpen}
         tradeId={selectedTradeId}
+        batchTrades={batchTrades}
         tradesList={filteredTrades}
-        onClose={() => setIsDrawerOpen(false)}
-        onSaved={() => refetch()}
-        onSelectTrade={(id) => setSelectedTradeId(id)}
+        onClose={() => {
+          setIsDrawerOpen(false)
+          setBatchTrades([])
+        }}
+        onSaved={() => {
+          setSelectedTradeIds([])
+          refetch()
+        }}
+        onSelectTrade={(id) => {
+          setBatchTrades([])
+          setSelectedTradeId(id)
+        }}
       />
     </div>
   )
