@@ -836,8 +836,6 @@ function TradesPageContent() {
   )
 }
 
-}
-
 export default function TradesPage() {
   return (
     <React.Suspense
