@@ -593,7 +593,7 @@ function CompoundingContent() {
                 onClick={() => setIsAddPurchaseModalOpen(true)}
                 className="text-xs font-bold border-amber-500/40 text-amber-400 hover:bg-amber-500/10 cursor-pointer"
               >
-                <Plus className="h-3.5 w-3.5 mr-1" /> + Target Pembelian
+                <Plus className="h-3.5 w-3.5 mr-1" /> Target Pembelian
               </Button>
             </div>
 
@@ -697,7 +697,7 @@ function CompoundingContent() {
                 onClick={() => setIsAddBehaviorModalOpen(true)}
                 className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs cursor-pointer shadow-sm"
               >
-                <Plus className="h-3.5 w-3.5 mr-1" /> + Target Perilaku Baru
+                <Plus className="h-3.5 w-3.5 mr-1" /> Target Perilaku Baru
               </Button>
             </div>
 
