@@ -27,7 +27,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/shared/toast'
 import { cn } from '@/lib/utils'
-import { getEmotionByKey } from '@/constants/psychology'
+import { getEmotionByKey, EMOTION_TAXONOMY, EMOTION_CATEGORY_DEFS } from '@/constants/psychology'
+import { EmotionCategoryKey } from '@/types/psychology'
 
 interface TradeJournalDrawerProps {
   isOpen: boolean
@@ -117,35 +118,33 @@ async function uploadScreenshotApi(tradeId: string, file: File, type: 'entry' | 
   return res.json()
 }
 
-async function createStrategyApi(name: string) {
+async function createStrategyApi(name: string, color = '#D4A94C') {
   const res = await fetch('/api/strategies', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, color: '#D4A94C' }),
+    body: JSON.stringify({ name, color }),
   })
-  if (!res.ok) throw new Error('Gagal menambah strategi')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.message || 'Gagal menambah strategi')
+  }
   const json = await res.json()
   return json.strategy
 }
 
-async function createMistakeTagApi(name: string) {
+async function createMistakeTagApi(name: string, color = '#EF4444') {
   const res = await fetch('/api/mistake-tags', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, color: '#EF4444' }),
+    body: JSON.stringify({ name, color }),
   })
-  if (!res.ok) throw new Error('Gagal menambah tag kesalahan')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.message || 'Gagal menambah tag kesalahan')
+  }
   const json = await res.json()
   return json.mistake_tag
 }
-
-const moodOptions: Array<{ type: MoodType; label: string; emoji: string }> = [
-  { type: 'confident', label: 'Percaya Diri', emoji: '😊' },
-  { type: 'neutral', label: 'Netral', emoji: '😐' },
-  { type: 'fomo', label: 'FOMO', emoji: '😤' },
-  { type: 'anxious', label: 'Cemas', emoji: '😰' },
-  { type: 'greedy', label: 'Serakah', emoji: '🤑' },
-]
 
 export function TradeJournalDrawer({
   isOpen,
@@ -1064,26 +1063,58 @@ export function TradeJournalDrawer({
 
                 {section3Open && (
                   <div className="space-y-4 text-xs">
-                    {/* Mood */}
-                    <div className="space-y-1.5">
-                      <label className="font-bold text-foreground block">Emosi Saat Entry</label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {moodOptions.map((m) => (
+                    {/* Mood / Emosi Saat Entry (Single-Select Radio Chips) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-foreground block">Emosi Saat Entry (Pilih 1)</label>
+                        {mood && (
                           <button
-                            key={m.type}
                             type="button"
-                            onClick={() => { setMood(m.type); markDirty() }}
-                            className={cn(
-                              'px-2.5 py-1 rounded-xl font-bold border transition-all flex items-center gap-1 cursor-pointer text-[11px]',
-                              mood === m.type
-                                ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-xs'
-                                : 'bg-card border-border text-muted-foreground hover:bg-muted/30'
-                            )}
+                            onClick={() => { setMood(undefined); markDirty() }}
+                            className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer"
                           >
-                            <span>{m.emoji}</span>
-                            <span>{m.label}</span>
+                            Reset Pilihan
                           </button>
-                        ))}
+                        )}
+                      </div>
+                      <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                        {(Object.keys(EMOTION_CATEGORY_DEFS) as EmotionCategoryKey[]).map((catKey) => {
+                          const catDef = EMOTION_CATEGORY_DEFS[catKey]
+                          const categoryEmotions = EMOTION_TAXONOMY.filter((e) => e.category === catKey)
+
+                          return (
+                            <div key={catKey} className="space-y-1">
+                              <span className="text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider block">
+                                {catDef.label}
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {categoryEmotions.map((m) => {
+                                  const isSelected = mood === m.key
+                                  return (
+                                    <button
+                                      key={m.key}
+                                      type="button"
+                                      onClick={() => {
+                                        setMood(isSelected ? undefined : (m.key as any))
+                                        markDirty()
+                                      }}
+                                      className={cn(
+                                        'px-2.5 py-1 rounded-xl font-bold border transition-all flex items-center gap-1.5 cursor-pointer text-[11px]',
+                                        isSelected
+                                          ? `${m.badgeColor} ring-2 ring-primary/40 shadow-xs`
+                                          : 'bg-card border-border/80 text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+                                      )}
+                                    >
+                                      <span>{m.emoji}</span>
+                                      <span>{m.label}</span>
+                                      {isSelected && <span className="text-[10px] ml-0.5">✓</span>}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
 
@@ -1124,17 +1155,12 @@ export function TradeJournalDrawer({
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <label className="font-bold text-foreground">Strategi Digunakan</label>
-                        <button
-                          type="button"
-                          onClick={() => setIsAddStrategyOpen(true)}
-                          className="text-[10px] font-bold text-amber-500 hover:underline flex items-center gap-0.5"
-                        >
-                          <Plus className="h-3 w-3" /> Tambah
-                        </button>
+                        <span className="text-[10px] text-muted-foreground">Bisa pilih lebih dari satu</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {strategies.map((s: any) => {
                           const isSel = selectedStrategies.includes(s.id)
+                          const itemColor = s.color || '#D4A94C'
                           return (
                             <button
                               key={s.id}
@@ -1145,17 +1171,26 @@ export function TradeJournalDrawer({
                                 )
                                 markDirty()
                               }}
-                              className={cn(
-                                'px-2.5 py-0.5 rounded-lg text-[11px] font-semibold border transition-all',
+                              style={
                                 isSel
-                                  ? 'bg-amber-500 text-black border-amber-500 font-bold'
-                                  : 'bg-card border-border text-muted-foreground hover:bg-muted/30'
-                              )}
+                                  ? { backgroundColor: itemColor, borderColor: itemColor, color: '#000000' }
+                                  : { backgroundColor: `${itemColor}15`, borderColor: `${itemColor}60`, color: itemColor }
+                              }
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all hover:scale-105 cursor-pointer shadow-2xs"
                             >
                               {s.name}
                             </button>
                           )
                         })}
+
+                        {/* + Tambah Baru Chip */}
+                        <button
+                          type="button"
+                          onClick={() => setIsAddStrategyOpen(true)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-dashed border-amber-500/60 text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3" /> Tambah Baru
+                        </button>
                       </div>
                     </div>
 
@@ -1163,17 +1198,12 @@ export function TradeJournalDrawer({
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <label className="font-bold text-foreground">Tag Kesalahan</label>
-                        <button
-                          type="button"
-                          onClick={() => setIsAddTagOpen(true)}
-                          className="text-[10px] font-bold text-destructive hover:underline flex items-center gap-0.5"
-                        >
-                          <Plus className="h-3 w-3" /> Tambah
-                        </button>
+                        <span className="text-[10px] text-muted-foreground">Bisa pilih lebih dari satu</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {mistakeTags.map((m: any) => {
                           const isSel = selectedMistakes.includes(m.id)
+                          const itemColor = m.color || '#EF4444'
                           return (
                             <button
                               key={m.id}
@@ -1184,17 +1214,26 @@ export function TradeJournalDrawer({
                                 )
                                 markDirty()
                               }}
-                              className={cn(
-                                'px-2.5 py-0.5 rounded-lg text-[11px] font-semibold border transition-all',
+                              style={
                                 isSel
-                                  ? 'bg-destructive text-white border-destructive font-bold'
-                                  : 'bg-card border-border text-muted-foreground hover:bg-muted/30'
-                              )}
+                                  ? { backgroundColor: itemColor, borderColor: itemColor, color: '#FFFFFF' }
+                                  : { backgroundColor: `${itemColor}15`, borderColor: `${itemColor}60`, color: itemColor }
+                              }
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all hover:scale-105 cursor-pointer shadow-2xs"
                             >
                               {m.name}
                             </button>
                           )
                         })}
+
+                        {/* + Tambah Baru Chip */}
+                        <button
+                          type="button"
+                          onClick={() => setIsAddTagOpen(true)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-dashed border-red-500/60 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3" /> Tambah Baru
+                        </button>
                       </div>
                     </div>
 

@@ -146,16 +146,76 @@ export default function StrategiesPage() {
     },
   })
 
+  // Delete Confirmation Modal State
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
+    id: string
+    name: string
+    type: 'strategy' | 'tag'
+    usageCount: number
+  } | null>(null)
+
+  const handleAttemptDeleteStrat = (strat: any) => {
+    const count = strat.usage_count || 0
+    if (count > 0) {
+      setDeleteConfirmTarget({
+        id: strat.id,
+        name: strat.name,
+        type: 'strategy',
+        usageCount: count,
+      })
+    } else {
+      deleteStratMutation.mutate(strat.id)
+    }
+  }
+
+  const handleAttemptDeleteTag = (tag: any) => {
+    const count = tag.usage_count || 0
+    if (count > 0) {
+      setDeleteConfirmTarget({
+        id: tag.id,
+        name: tag.name,
+        type: 'tag',
+        usageCount: count,
+      })
+    } else {
+      deleteTagMutation.mutate(tag.id)
+    }
+  }
+
+  const handleConfirmDelete = () => {
+    if (!deleteConfirmTarget) return
+    if (deleteConfirmTarget.type === 'strategy') {
+      deleteStratMutation.mutate(deleteConfirmTarget.id)
+    } else {
+      deleteTagMutation.mutate(deleteConfirmTarget.id)
+    }
+    setDeleteConfirmTarget(null)
+  }
+
   const handleAddStrategy = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newStratName.trim()) return
-    addStratMutation.mutate({ name: newStratName.trim(), color: newStratColor })
+    addStratMutation.mutate(
+      { name: newStratName.trim(), color: newStratColor },
+      {
+        onError: (err: any) => {
+          toast(err.message || 'Gagal menambah strategi', 'error')
+        },
+      }
+    )
   }
 
   const handleAddMistakeTag = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTagName.trim()) return
-    addTagMutation.mutate({ name: newTagName.trim(), color: newTagColor })
+    addTagMutation.mutate(
+      { name: newTagName.trim(), color: newTagColor },
+      {
+        onError: (err: any) => {
+          toast(err.message || 'Gagal menambah tag kesalahan', 'error')
+        },
+      }
+    )
   }
 
   return (
@@ -234,28 +294,36 @@ export default function StrategiesPage() {
                 <Loader2 className="h-5 w-5 text-primary animate-spin" />
               </div>
             ) : strategies.length > 0 ? (
-              strategies.map((strat) => (
-                <div
-                  key={strat.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-background border border-border/60 hover:border-primary/30 transition-all"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className="h-3.5 w-3.5 rounded-full shrink-0"
-                      style={{ backgroundColor: strat.color || '#D4A94C' }}
-                    />
-                    <span className="text-xs font-bold text-foreground">{strat.name}</span>
-                  </div>
-
-                  <button
-                    onClick={() => deleteStratMutation.mutate(strat.id)}
-                    className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10"
-                    title="Hapus Strategi"
+              strategies.map((strat: any) => {
+                const count = strat.usage_count || 0
+                return (
+                  <div
+                    key={strat.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-background border border-border/60 hover:border-primary/30 transition-all"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="h-3.5 w-3.5 rounded-full shrink-0"
+                        style={{ backgroundColor: strat.color || '#D4A94C' }}
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-foreground block">{strat.name}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          dipakai di {count} trade
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleAttemptDeleteStrat(strat)}
+                      className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10 cursor-pointer"
+                      title="Hapus Strategi"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )
+              })
             ) : (
               <p className="text-xs text-muted-foreground text-center py-4">Belum ada strategi.</p>
             )}
@@ -327,34 +395,82 @@ export default function StrategiesPage() {
                 <Loader2 className="h-5 w-5 text-loss animate-spin" />
               </div>
             ) : mistakeTags.length > 0 ? (
-              mistakeTags.map((tag) => (
-                <div
-                  key={tag.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-background border border-border/60 hover:border-loss/30 transition-all"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className="h-3.5 w-3.5 rounded-full shrink-0"
-                      style={{ backgroundColor: tag.color || '#EF4444' }}
-                    />
-                    <span className="text-xs font-bold text-foreground">{tag.name}</span>
-                  </div>
-
-                  <button
-                    onClick={() => deleteTagMutation.mutate(tag.id)}
-                    className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10"
-                    title="Hapus Tag"
+              mistakeTags.map((tag: any) => {
+                const count = tag.usage_count || 0
+                return (
+                  <div
+                    key={tag.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-background border border-border/60 hover:border-loss/30 transition-all"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="h-3.5 w-3.5 rounded-full shrink-0"
+                        style={{ backgroundColor: tag.color || '#EF4444' }}
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-foreground block">{tag.name}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          dipakai di {count} trade
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleAttemptDeleteTag(tag)}
+                      className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10 cursor-pointer"
+                      title="Hapus Tag"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )
+              })
             ) : (
               <p className="text-xs text-muted-foreground text-center py-4">Belum ada tag kesalahan.</p>
             )}
           </div>
         </div>
       </div>
+
+      {/* MODAL KONFIRMASI HAPUS (SAFE DELETION WARNING) */}
+      {deleteConfirmTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center gap-3 text-amber-400 border-b border-border pb-3">
+              <AlertTriangle className="h-6 w-6 shrink-0" />
+              <h3 className="text-base font-extrabold text-foreground">
+                Konfirmasi Hapus {deleteConfirmTarget.type === 'strategy' ? 'Strategi' : 'Tag Kesalahan'}
+              </h3>
+            </div>
+
+            <p className="text-xs text-foreground leading-relaxed">
+              {deleteConfirmTarget.type === 'strategy' ? 'Strategi' : 'Tag kesalahan'}{' '}
+              <span className="font-bold text-amber-400">"{deleteConfirmTarget.name}"</span>{' '}
+              digunakan di <span className="font-bold font-mono">{deleteConfirmTarget.usageCount} trade</span>.
+              Menghapusnya akan menghilangkan label ini dari trade-trade tersebut. Lanjutkan?
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteConfirmTarget(null)}
+                className="text-xs font-bold"
+              >
+                Batal
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleConfirmDelete}
+                className="text-xs font-bold"
+              >
+                Ya, Hapus
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -26,6 +27,7 @@ import { TradeJournalDrawer } from '@/components/shared/trade-journal-drawer'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Trade } from '@/types/trade'
+import { getNotesForDate } from '@/utils/notes-storage'
 
 const initialFilterState: FilterState = {
   search:        '',
@@ -61,6 +63,7 @@ interface ApiTrade {
     group_id?: string
     group_name?: string
   } | null
+  strategies?: Array<{ id: string; name: string; color: string }>
 }
 
 function mapApiTrade(t: ApiTrade): Trade {
@@ -87,6 +90,7 @@ function mapApiTrade(t: ApiTrade): Trade {
     groupId:       t.trade_journal?.group_id ?? undefined,
     groupName:     t.trade_journal?.group_name ?? undefined,
     source:        t.source ?? 'mt5_sync',
+    strategies:    t.strategies ?? [],
   }
 }
 
@@ -305,6 +309,7 @@ function TradesPageContent() {
   const groupedTrades = useMemo(() => {
     const groups: Array<{
       dateLabel: string
+      dateIso: string
       items: Trade[]
       closedItems: Trade[]
       totalPnl: number
@@ -313,10 +318,11 @@ function TradesPageContent() {
       netStatus: 'profit' | 'loss' | 'even'
     }> = []
 
-    const map = new Map<string, Trade[]>()
+    const map = new Map<string, { dateIso: string; items: Trade[] }>()
 
     filteredTrades.forEach((t) => {
       const d = new Date(t.openTime)
+      const dateIso = isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10)
       const dateLabel = isNaN(d.getTime())
         ? 'Tanggal Lainnya'
         : d.toLocaleDateString('id-ID', {
@@ -326,11 +332,13 @@ function TradesPageContent() {
             year: 'numeric',
           })
 
-      const list = map.get(dateLabel) || []
-      map.set(dateLabel, [...list, t])
+      const entry = map.get(dateLabel) || { dateIso, items: [] }
+      entry.items.push(t)
+      map.set(dateLabel, entry)
     })
 
-    map.forEach((items, dateLabel) => {
+    map.forEach((entry, dateLabel) => {
+      const items = entry.items
       const closedItems = items.filter((t) => t.status === 'closed')
       const totalPnl = closedItems.reduce((acc, t) => acc + (t.pnl || 0), 0)
       const wins = closedItems.filter((t) => (t.pnl || 0) > 0).length
@@ -339,6 +347,7 @@ function TradesPageContent() {
 
       groups.push({
         dateLabel,
+        dateIso: entry.dateIso,
         items,
         closedItems,
         totalPnl,
@@ -484,7 +493,7 @@ function TradesPageContent() {
               onClick={handleOpenManualDrawer}
               className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold shadow-sm"
             >
-              <Plus className="h-4 w-4 mr-1" /> + Tambah Jurnal Trade
+              <Plus className="h-4 w-4 mr-1" /> Tambah Jurnal Trade
             </Button>
             <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -637,13 +646,25 @@ function TradesPageContent() {
                         </div>
 
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-extrabold text-foreground tracking-tight">
                               📅 {group.dateLabel}
                             </span>
                             <span className="text-xs font-mono font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border/40">
                               {group.items.length} Trade
                             </span>
+
+                            {/* Linked Notes Indicator */}
+                            {group.dateIso && getNotesForDate(group.dateIso).length > 0 && (
+                              <Link
+                                href={`/notes?date=${group.dateIso}`}
+                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-all shadow-2xs"
+                                title="Lihat catatan trading untuk tanggal ini"
+                              >
+                                📝 {getNotesForDate(group.dateIso).length} Catatan →
+                              </Link>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2 mt-0.5 text-xs">
@@ -869,7 +890,7 @@ function TradesPageContent() {
           ) : (
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={handleOpenManualDrawer} className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold">
-                <Plus className="h-4 w-4 mr-1" /> + Tambah Jurnal Trade
+                <Plus className="h-4 w-4 mr-1" /> Tambah Jurnal Trade
               </Button>
               <Button variant="secondary" size="sm" onClick={() => router.push('/mt5')}>
                 Hubungkan MT5

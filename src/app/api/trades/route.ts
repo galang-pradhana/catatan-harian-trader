@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
         journal_status, created_at,
         trade_journal (
           id, group_id, group_name, reason_entry, mood, discipline, self_grade, updated_at
+        ),
+        trade_strategies (
+          strategies ( id, name, color )
         )
         `,
         { count: 'exact' }
@@ -81,8 +84,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const formattedTrades = (data ?? []).map((t: any) => ({
+      ...t,
+      strategies: (t.trade_strategies as any[])?.map((ts: any) => ts.strategies).filter(Boolean) ?? [],
+    }))
+
     return NextResponse.json({
-      trades:      data ?? [],
+      trades:      formattedTrades,
       total:       count ?? 0,
       page,
       limit,

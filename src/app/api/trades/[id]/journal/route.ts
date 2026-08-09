@@ -6,7 +6,7 @@ const JournalSchema = z.object({
   sl:              z.number().nullable().optional(),
   tp:              z.number().nullable().optional(),
   reason_entry:    z.string().max(2000).optional(),
-  mood:            z.enum(['neutral', 'confident', 'fomo', 'anxious', 'greedy']).optional(),
+  mood:            z.string().optional(),
   discipline:      z.enum(['yes', 'no']).optional(),
   lesson_learned:  z.string().max(2000).optional(),
   risk_percent:    z.number().min(0).max(100).optional(),

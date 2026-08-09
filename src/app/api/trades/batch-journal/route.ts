@@ -7,7 +7,7 @@ const BatchJournalSchema = z.object({
   group_id:        z.string().optional(),
   group_name:      z.string().max(255).optional(),
   reason_entry:    z.string().max(2000).optional(),
-  mood:            z.enum(['neutral', 'confident', 'fomo', 'anxious', 'greedy']).optional(),
+  mood:            z.string().optional(),
   discipline:      z.enum(['yes', 'no']).optional(),
   lesson_learned:  z.string().max(2000).optional(),
   risk_percent:    z.number().min(0).max(100).optional(),

@@ -13,6 +13,7 @@ import {
   BarChart3,
   Calendar as CalendarIcon,
   Tag,
+  Tags,
   BookOpen,
   Sparkles,
   TrendingUp,
@@ -21,11 +22,16 @@ import {
   ShieldCheck,
   ShieldAlert,
   Loader2,
-  Smile
+  Smile,
+  Eye,
+  X,
+  RefreshCw,
 } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { getNotesForDate } from '@/utils/notes-storage'
 import {
   EMOTION_TAXONOMY,
   EMOTION_CATEGORY_DEFS,
@@ -57,9 +63,19 @@ export default function PsychologyPage() {
   // Data states
   const [isLoading, setIsLoading] = useState(true)
   const [logsMap, setLogsMap] = useState<Record<string, DailyPsychologyLog>>({})
-  const [tradeSummaryMap, setTradeSummaryMap] = useState<Record<string, { tradesCount: number; winsCount: number; lossesCount: number; totalPnl: number }>>({})
+  const [autoSuggestedMoods, setAutoSuggestedMoods] = useState<Record<string, { emotion: string; category: string; count: number }>>({})
+  const [tradeSummaryMap, setTradeSummaryMap] = useState<Record<string, { tradesCount: number; winsCount: number; lossesCount: number; totalPnl: number; tradesList?: any[] }>>({})
   const [disciplineStreak, setDisciplineStreak] = useState(0)
   const [analytics, setAnalytics] = useState<PsychologyAnalyticsSummary | null>(null)
+
+  // Trade level analytics states
+  const [disciplineStats, setDisciplineStats] = useState<Array<{ discipline: string; label: string; tradesCount: number; winsCount: number; lossesCount: number; winRate: number; totalPnl: number }>>([])
+  const [tradeMistakeRankings, setTradeMistakeRankings] = useState<Array<{ tagId: string; tagName: string; tagColor: string; count: number; lossCount: number; totalPnl: number }>>([])
+  const [strategyRankings, setStrategyRankings] = useState<Array<{ strategyId: string; strategyName: string; strategyColor: string; tradesCount: number; winsCount: number; lossesCount: number; winRate: number; avgPnlPerTrade: number; totalPnl: number }>>([])
+
+  // Drill-down Modal state
+  const [isDrilldownOpen, setIsDrilldownOpen] = useState(false)
+  const [drilldownDate, setDrilldownDate] = useState<string | null>(null)
 
   // Custom trigger tags library
   const [customTriggers, setCustomTriggers] = useState<TriggerTagOption[]>([])
@@ -107,6 +123,7 @@ export default function PsychologyPage() {
           })
         }
         setLogsMap(lMap)
+        setAutoSuggestedMoods(json.autoSuggestedMoods || {})
 
         const tMap: Record<string, any> = {}
         if (Array.isArray(json.tradeSummaries)) {
@@ -117,6 +134,9 @@ export default function PsychologyPage() {
         setTradeSummaryMap(tMap)
 
         setDisciplineStreak(json.disciplineStreak || 0)
+        setDisciplineStats(json.disciplineStats || [])
+        setTradeMistakeRankings(json.tradeMistakeRankings || [])
+        setStrategyRankings(json.strategyRankings || [])
 
         setAnalytics({
           disciplineStreak: json.disciplineStreak || 0,
@@ -154,20 +174,24 @@ export default function PsychologyPage() {
     fetchData()
   }, [monthParam])
 
-  // Sync selected day form whenever selectedDay or logsMap changes
+  // Sync selected day form whenever selectedDay, logsMap, or autoSuggestedMoods changes
   useEffect(() => {
     const existingLog = logsMap[selectedDateStr]
     if (existingLog) {
       setSelectedEmotion(existingLog.emotion)
       setSelectedTriggerTags(existingLog.triggerTags || [])
       setReflectionText(existingLog.reflectionNote || '')
+    } else if (autoSuggestedMoods[selectedDateStr]) {
+      setSelectedEmotion(autoSuggestedMoods[selectedDateStr].emotion)
+      setSelectedTriggerTags([])
+      setReflectionText('')
     } else {
       setSelectedEmotion('confident')
       setSelectedTriggerTags([])
       setReflectionText('')
     }
     setSaveSuccessMsg('')
-  }, [selectedDateStr, logsMap])
+  }, [selectedDateStr, logsMap, autoSuggestedMoods])
 
   // Save/Update Daily Log
   const handleSaveDailyLog = async () => {
@@ -341,7 +365,10 @@ export default function PsychologyPage() {
 
               {/* Taxonomy Color Legend */}
               <div className="flex items-center gap-2 flex-wrap text-[10px] font-bold">
-                <span className="text-muted-foreground">Kategori:</span>
+                <span className="text-muted-foreground">Legend:</span>
+                <span className="px-1.5 py-0.5 rounded border border-border bg-muted/30 text-foreground flex items-center gap-1">
+                  <span>🔄</span> Auto-Suggest
+                </span>
                 {(Object.keys(EMOTION_CATEGORY_DEFS) as EmotionCategoryKey[]).map((catKey) => {
                   const def = EMOTION_CATEGORY_DEFS[catKey]
                   return (
@@ -372,7 +399,14 @@ export default function PsychologyPage() {
                 const dayNum = i + 1
                 const dateStr = `${monthParam}-${String(dayNum).padStart(2, '0')}`
                 const log = logsMap[dateStr]
-                const emoObj = log ? getEmotionByKey(log.emotion) : null
+                const autoSuggested = autoSuggestedMoods[dateStr]
+                const isManualLog = Boolean(log)
+                const isAutoSuggested = !isManualLog && Boolean(autoSuggested)
+                const emoObj = isManualLog
+                  ? getEmotionByKey(log.emotion)
+                  : isAutoSuggested
+                  ? getEmotionByKey(autoSuggested.emotion)
+                  : null
                 const tradeSum = tradeSummaryMap[dateStr]
                 const isSelected = selectedDay === dayNum
 
@@ -400,7 +434,7 @@ export default function PsychologyPage() {
                         {dayNum}
                       </span>
                       {emoObj && (
-                        <span className="text-base leading-none group-hover:scale-110 transition-transform">
+                        <span className="text-base leading-none group-hover:scale-110 transition-transform flex items-center gap-0.5">
                           {emoObj.emoji}
                         </span>
                       )}
@@ -409,8 +443,13 @@ export default function PsychologyPage() {
                     {/* Emotion Category Badge */}
                     {emoObj ? (
                       <div className="mt-0.5">
-                        <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.2 rounded border truncate block text-center', emoObj.badgeColor)}>
-                          {emoObj.label}
+                        <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.2 rounded border truncate flex items-center justify-center gap-0.5 text-center', emoObj.badgeColor)}>
+                          {isAutoSuggested && (
+                            <span className="inline-block text-[9px] shrink-0" title="Auto-suggest dari emosi trade hari ini">
+                              🔄
+                            </span>
+                          )}
+                          <span className="truncate">{emoObj.label}</span>
                         </span>
                       </div>
                     ) : (
@@ -447,17 +486,35 @@ export default function PsychologyPage() {
                 <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
                   {selectedDateStr}
                 </p>
+                {getNotesForDate(selectedDateStr).length > 0 && (
+                  <Link
+                    href={`/notes?date=${selectedDateStr}`}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline mt-1 bg-primary/10 px-2 py-0.5 rounded-full border border-primary/30"
+                  >
+                    📝 {getNotesForDate(selectedDateStr).length} Catatan →
+                  </Link>
+                )}
               </div>
 
               {/* Trade summary for selected date */}
-              {tradeSummaryMap[selectedDateStr] && (
+              {tradeSummaryMap[selectedDateStr] && tradeSummaryMap[selectedDateStr].tradesCount > 0 && (
                 <div className="text-right text-xs font-mono">
                   <span className="font-bold block text-foreground">
                     {tradeSummaryMap[selectedDateStr].tradesCount} Trade
                   </span>
-                  <span className={cn('font-bold', tradeSummaryMap[selectedDateStr].totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                  <span className={cn('font-bold block', tradeSummaryMap[selectedDateStr].totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400')}>
                     {tradeSummaryMap[selectedDateStr].totalPnl >= 0 ? '+' : ''}${tradeSummaryMap[selectedDateStr].totalPnl.toFixed(2)}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDrilldownDate(selectedDateStr)
+                      setIsDrilldownOpen(true)
+                    }}
+                    className="text-[10px] font-extrabold text-primary hover:underline flex items-center justify-end gap-1 mt-1 cursor-pointer ml-auto"
+                  >
+                    <Eye className="h-3 w-3" /> Lihat Trade
+                  </button>
                 </div>
               )}
             </div>
@@ -685,10 +742,11 @@ export default function PsychologyPage() {
             </div>
           </div>
 
-          {/* TRIGGER TAG LOSS RANKINGS */}
+          {/* TRIGGER TAG LOSS RANKINGS (EMOTIONAL CONTEXT) */}
           <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="text-base font-extrabold text-foreground border-b border-border pb-3">
-              📌 Ranking Tag Pemicu Paling Sering Menghasilkan Loss
+            <h3 className="text-base font-extrabold text-foreground border-b border-border pb-3 flex items-center justify-between">
+              <span>📌 Ranking Tag Pemicu Emosi Harian</span>
+              <span className="text-[11px] font-mono text-muted-foreground">Konteks Emosional Harian</span>
             </h3>
 
             {analytics?.triggerTagRankings && analytics.triggerTagRankings.length > 0 ? (
@@ -720,6 +778,169 @@ export default function PsychologyPage() {
             ) : (
               <p className="text-xs text-muted-foreground text-center py-4">
                 Belum ada tag pemicu yang tercatat untuk bulan ini.
+              </p>
+            )}
+          </div>
+
+          {/* TRADE DISCIPLINE METRICS (TRADE LEVEL) */}
+          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-emerald-400" /> Analisis Kedisiplinan Eksekusi Trade
+              </h3>
+              <span className="text-[11px] font-mono text-muted-foreground">Level Trade Individual</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {disciplineStats.map((d) => {
+                const isYes = d.discipline === 'yes'
+                const isProfit = d.totalPnl >= 0
+                return (
+                  <div
+                    key={d.discipline}
+                    className={cn(
+                      'p-4 rounded-2xl border space-y-3',
+                      isYes ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={cn('text-xs font-black px-2.5 py-1 rounded-full border flex items-center gap-1.5', isYes ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-red-500/20 text-red-300 border-red-500/40')}>
+                        {isYes ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+                        {d.label}
+                      </span>
+                      <span className="text-xs font-bold text-muted-foreground font-mono">
+                        {d.tradesCount} Trade ({d.winsCount}W / {d.lossesCount}L)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/40 font-mono">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold block">Win Rate</span>
+                        <span className={cn('text-lg font-black', d.winRate >= 50 ? 'text-emerald-400' : 'text-amber-400')}>
+                          {d.winRate.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold block">Total Net PnL</span>
+                        <span className={cn('text-lg font-black', isProfit ? 'text-emerald-400' : 'text-red-400')}>
+                          {isProfit ? '+' : ''}${d.totalPnl.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* TRADE MISTAKE TAGS RANKINGS (EXECUTION CONTEXT) */}
+          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-400" /> Tag Kesalahan Eksekusi Trade (Drawer Jurnal)
+              </h3>
+              <span className="text-[11px] font-mono text-muted-foreground">Konteks Eksekusi Trade</span>
+            </div>
+
+            {tradeMistakeRankings.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {tradeMistakeRankings.map((tag, idx) => (
+                  <div
+                    key={tag.tagId}
+                    className="p-3.5 rounded-xl bg-muted/30 border border-border flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold font-mono text-muted-foreground w-5 text-center">
+                        #{idx + 1}
+                      </span>
+                      <div>
+                        <span className="font-extrabold text-foreground block">
+                          {tag.tagName}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          Tercatat {tag.count}x • {tag.lossCount} trade loss
+                        </span>
+                      </div>
+                    </div>
+                    <span className={cn('font-bold font-mono text-sm', tag.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                      {tag.totalPnl >= 0 ? '+' : ''}${tag.totalPnl.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Belum ada tag kesalahan trade yang tercatat pada jurnal trade.
+              </p>
+            )}
+          </div>
+
+          {/* TRADE STRATEGY PERFORMANCE METRICS */}
+          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                <Tags className="h-5 w-5 text-amber-400" /> Analisis Performa Per Setup Strategi
+              </h3>
+              <span className="text-[11px] font-mono text-muted-foreground">Setup Master Data</span>
+            </div>
+
+            {strategyRankings.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground uppercase text-[10px] font-extrabold">
+                      <th className="py-2.5 px-3">Setup Strategi</th>
+                      <th className="py-2.5 px-3 text-center">Total Trade</th>
+                      <th className="py-2.5 px-3 text-center">Win Rate</th>
+                      <th className="py-2.5 px-3 text-right">Rata-rata PnL / Trade</th>
+                      <th className="py-2.5 px-3 text-right">Total Net PnL</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60 font-mono">
+                    {strategyRankings.map((strat) => {
+                      const isProfit = strat.totalPnl >= 0
+                      return (
+                        <tr key={strat.strategyId} className="hover:bg-muted/20 transition-colors">
+                          <td className="py-3 px-3">
+                            <span
+                              className="px-2.5 py-1 rounded-full text-xs font-bold border inline-flex items-center gap-1.5"
+                              style={{
+                                backgroundColor: `${strat.strategyColor}20`,
+                                borderColor: `${strat.strategyColor}60`,
+                                color: strat.strategyColor,
+                              }}
+                            >
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: strat.strategyColor }} />
+                              {strat.strategyName}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-center font-bold text-foreground">
+                            {strat.tradesCount} Trade ({strat.winsCount}W / {strat.lossesCount}L)
+                          </td>
+                          <td className="py-3 px-3 text-center font-bold">
+                            <span className={cn(strat.winRate >= 50 ? 'text-emerald-400' : 'text-amber-400')}>
+                              {strat.winRate.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold">
+                            <span className={cn(strat.avgPnlPerTrade >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                              {strat.avgPnlPerTrade >= 0 ? '+' : ''}${strat.avgPnlPerTrade.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-extrabold text-sm">
+                            <span className={cn(isProfit ? 'text-emerald-400' : 'text-red-400')}>
+                              {isProfit ? '+' : ''}${strat.totalPnl.toFixed(2)}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Belum ada strategi yang diisikan pada jurnal trade bulan ini.
               </p>
             )}
           </div>
@@ -903,6 +1124,117 @@ export default function PsychologyPage() {
                 className="text-xs font-bold"
               >
                 Simpan Tag
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DRILL-DOWN TRADE HARIAN (READ-ONLY) */}
+      {isDrilldownOpen && drilldownDate && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl p-5 max-w-lg w-full space-y-4 shadow-2xl animate-in zoom-in-95 max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border pb-3 shrink-0">
+              <div>
+                <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                  <CalendarIcon className="h-5 w-5 text-primary" />
+                  Daftar Trade — {drilldownDate}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                  {tradeSummaryMap[drilldownDate]?.tradesCount || 0} Trade • Total PnL:{' '}
+                  <span className={cn('font-bold', (tradeSummaryMap[drilldownDate]?.totalPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                    {(tradeSummaryMap[drilldownDate]?.totalPnl || 0) >= 0 ? '+' : ''}${tradeSummaryMap[drilldownDate]?.totalPnl.toFixed(2)}
+                  </span>
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setIsDrilldownOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Trades List (Read-Only) */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {tradeSummaryMap[drilldownDate]?.tradesList && tradeSummaryMap[drilldownDate].tradesList.length > 0 ? (
+                tradeSummaryMap[drilldownDate].tradesList.map((tr: any) => {
+                  const trBuy = tr.direction === 'buy'
+                  const isProfit = (tr.pnl || 0) >= 0
+                  const tradeEmoObj = tr.mood ? getEmotionByKey(tr.mood) : null
+
+                  return (
+                    <div
+                      key={tr.id}
+                      className="p-3 rounded-xl bg-muted/20 border border-border/80 space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={cn('text-[9px] font-bold uppercase px-1.5 py-0.5 rounded', trBuy ? 'bg-blue-500/20 text-blue-300' : 'bg-amber-500/20 text-amber-300')}>
+                            {tr.direction}
+                          </span>
+                          <span className="font-extrabold text-foreground">{tr.symbol}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground">{tr.volume} Lot</span>
+                          {tr.mt5TicketId && (
+                            <span className="text-[9px] font-mono text-muted-foreground">#{tr.mt5TicketId}</span>
+                          )}
+                        </div>
+
+                        {/* Outcome badge */}
+                        <div className="flex items-center gap-2 font-mono">
+                          {tr.status !== 'open' && tr.pnl !== undefined && (
+                            <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.2 rounded text-white tracking-wider', tr.pnl > 0 ? 'bg-emerald-600' : tr.pnl < 0 ? 'bg-red-600' : 'bg-slate-600')}>
+                              {tr.pnl > 0 ? 'WIN' : tr.pnl < 0 ? 'LOSS' : 'BE'}
+                            </span>
+                          )}
+                          <span className={cn('font-bold', isProfit ? 'text-emerald-400' : 'text-red-400')}>
+                            {tr.pnl !== undefined ? `${isProfit ? '+' : ''}$${tr.pnl.toFixed(2)}` : 'Running'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40 text-[10px]">
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground font-mono">In: {tr.openPrice} • Out: {tr.closePrice ?? '-'}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {/* Trade Emotion Entry Badge */}
+                          {tradeEmoObj ? (
+                            <span className={cn('text-[9px] font-bold px-2 py-0.2 rounded border', tradeEmoObj.badgeColor)}>
+                              {tradeEmoObj.emoji} {tradeEmoObj.label}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground opacity-50 italic">Belum ada emosi</span>
+                          )}
+
+                          {/* Discipline Badge */}
+                          {tr.discipline === 'yes' ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                              Ikut Rules ✓
+                            </span>
+                          ) : tr.discipline === 'no' ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-red-500/15 text-red-400 border border-red-500/30">
+                              Melanggar Rules ✗
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  Tidak ada trade yang tercatat pada tanggal ini.
+                </p>
+              )}
+            </div>
+
+            {/* Footer info note */}
+            <div className="pt-2 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground shrink-0">
+              <span className="italic opacity-80">
+                ℹ️ Pengeditan emosi per-trade dilakukan dari drawer jurnal di menu Daftar Trade.
+              </span>
+              <Button variant="outline" size="sm" onClick={() => setIsDrilldownOpen(false)} className="text-xs font-bold">
+                Tutup
               </Button>
             </div>
           </div>

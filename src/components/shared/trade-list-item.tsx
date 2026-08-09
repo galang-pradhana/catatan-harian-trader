@@ -135,6 +135,24 @@ export function TradeListItem({
               </span>
             )}
 
+            {/* Strategy Badges */}
+            {trade.strategies && trade.strategies.length > 0 && (
+              trade.strategies.map((strat) => (
+                <span
+                  key={strat.id}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1"
+                  style={{
+                    backgroundColor: `${strat.color}20`,
+                    borderColor: `${strat.color}60`,
+                    color: strat.color,
+                  }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: strat.color }} />
+                  <span>{strat.name}</span>
+                </span>
+              ))
+            )}
+
             {/* Manual Entry vs MT5 Badge */}
             {isManual ? (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">

@@ -3,7 +3,24 @@ export type TradeStatus = 'open' | 'closed'
 export type TradingSession = 'asia' | 'london' | 'newyork'
 export type JournalStatus = 'incomplete' | 'complete'
 export type SelfGrade = 'A' | 'B' | 'C' | 'D' | 'F'
-export type MoodType = 'neutral' | 'confident' | 'fomo' | 'anxious' | 'greedy'
+export type MoodType =
+  | 'confident'
+  | 'calm'
+  | 'disciplined'
+  | 'focused'
+  | 'anxious'
+  | 'fearful'
+  | 'hesitant'
+  | 'greedy'
+  | 'fomo'
+  | 'overconfident'
+  | 'frustrated'
+  | 'angry'
+  | 'revenge'
+  | 'panicked'
+  | 'bored'
+  | 'neutral'
+
 
 export interface Strategy {
   id: string
@@ -66,6 +83,7 @@ export interface Trade {
   groupId?: string
   groupName?: string
   journal?: TradeJournal
+  strategies?: Strategy[]
   source?: 'mt5_sync' | 'csv_import' | 'manual'
 }
 

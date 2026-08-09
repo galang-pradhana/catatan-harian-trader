@@ -41,8 +41,6 @@ export const navItems = [
   { href: '/psychology',  label: 'Psikologi Trading', icon: Brain },
   { href: '/strategies',  label: 'Strategi',          icon: Target },
   { href: '/notes',       label: 'Catatan',           icon: FileText },
-  { href: '/goals',       label: 'Tujuan',            icon: Trophy },
-  { href: '/reminders',   label: 'Pengingat',         icon: Bell },
   { href: '/mt5',         label: 'Import / MT5',      icon: Link2 },
   { href: '/settings',    label: 'Pengaturan',        icon: Settings },
 ]
@@ -52,6 +50,7 @@ export function Sidebar() {
   const { theme, toggleTheme } = useThemeStore()
   const { isCollapsed, toggleSidebar } = useSidebarStore()
   const [isAdmin, setIsAdmin] = React.useState(false)
+  const [isJournalFilledToday, setIsJournalFilledToday] = React.useState<boolean | null>(null)
 
   React.useEffect(() => {
     const supabase = createClient()
@@ -67,6 +66,19 @@ export function Sidebar() {
               setIsAdmin(true)
             }
           })
+
+        // Check client-side if user has recorded a trade or psychology log today (YYYY-MM-DD)
+        const todayStr = new Date().toISOString().slice(0, 10)
+        Promise.all([
+          supabase.from('trades').select('id', { count: 'exact', head: true }).eq('user_id', user.id).gte('open_time', `${todayStr}T00:00:00.000Z`),
+          supabase.from('daily_psychology_logs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('log_date', todayStr),
+        ]).then(([tradeRes, logRes]) => {
+          const tradeCount = tradeRes.count ?? 0
+          const logCount = logRes.count ?? 0
+          setIsJournalFilledToday(tradeCount > 0 || logCount > 0)
+        }).catch(() => {
+          setIsJournalFilledToday(true)
+        })
       }
     })
   }, [])
@@ -153,6 +165,21 @@ export function Sidebar() {
 
       {/* Theme Toggle & Logout Footer */}
       <div className="pt-3 border-t border-border/60 w-full space-y-2">
+        {/* Client-Side Daily Journal Warning Indicator */}
+        {isJournalFilledToday === false && (
+          <Link
+            href="/trades"
+            title={isCollapsed ? '⚠️ Belum isi jurnal hari ini' : undefined}
+            className={cn(
+              'flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer shadow-2xs',
+              isCollapsed && 'justify-center px-0'
+            )}
+          >
+            <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+            {!isCollapsed && <span className="truncate">⚠️ Belum isi jurnal hari ini</span>}
+          </Link>
+        )}
+
         {isAdmin && (
           <Link
             href="/admin/dashboard"
