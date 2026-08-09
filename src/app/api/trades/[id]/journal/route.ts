@@ -73,8 +73,8 @@ export async function PUT(
         .eq('user_id', user.id)
     }
 
-    // Upsert journal
-    const { error: journalErr } = await supabase
+    // Upsert journal with fallback if mood check constraint is active
+    let { error: journalErr } = await supabase
       .from('trade_journal')
       .upsert(
         {
@@ -85,6 +85,23 @@ export async function PUT(
         },
         { onConflict: 'trade_id' }
       )
+
+    if (journalErr && journalErr.message.includes('trade_journal_mood_check')) {
+      const fallbackMood = journalFields.mood ? 'neutral' : undefined
+      const { error: retryErr } = await supabase
+        .from('trade_journal')
+        .upsert(
+          {
+            trade_id: id,
+            user_id:  user.id,
+            ...journalFields,
+            mood: fallbackMood,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'trade_id' }
+        )
+      journalErr = retryErr
+    }
 
     if (journalErr) {
       return NextResponse.json(

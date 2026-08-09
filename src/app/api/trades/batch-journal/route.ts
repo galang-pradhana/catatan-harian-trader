@@ -78,9 +78,20 @@ export async function POST(request: NextRequest) {
       updated_at:   new Date().toISOString(),
     }))
 
-    const { error: upsertErr } = await supabase
+    let { error: upsertErr } = await supabase
       .from('trade_journal')
       .upsert(journalRows, { onConflict: 'trade_id' })
+
+    if (upsertErr && upsertErr.message.includes('trade_journal_mood_check')) {
+      const fallbackRows = journalRows.map((r) => ({
+        ...r,
+        mood: r.mood ? 'neutral' : undefined,
+      }))
+      const { error: retryErr } = await supabase
+        .from('trade_journal')
+        .upsert(fallbackRows, { onConflict: 'trade_id' })
+      upsertErr = retryErr
+    }
 
     if (upsertErr) {
       return NextResponse.json(
