@@ -34,10 +34,94 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { action, newPlan, newStatus, adminPassword } = body
+    const { action, newPlan, newStatus, adminPassword, reason } = body
 
     if (!action) {
       return NextResponse.json({ error: 'Action type is required' }, { status: 400 })
+    }
+
+    // Fetch Target User Info
+    const { data: targetUserData } = await supabase
+      .from('users')
+      .select('email, display_name, status')
+      .eq('id', targetUserId)
+      .single()
+
+    if (action === 'approve') {
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ status: 'active' })
+        .eq('id', targetUserId)
+
+      if (updateError) throw updateError
+
+      // Record Audit Log
+      try {
+        await supabase.from('admin_audit_log').insert({
+          admin_user_id: adminUser.id,
+          action: 'APPROVE_USER',
+          target_user_id: targetUserId,
+          details: {
+            previousStatus: targetUserData?.status || 'pending',
+            newStatus: 'active',
+            note: 'Approved by admin',
+          },
+        })
+      } catch {}
+
+      // Trigger Email Notification
+      try {
+        await fetch(`${request.nextUrl.origin}/api/admin/notify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'USER_APPROVED',
+            userEmail: targetUserData?.email,
+            userName: targetUserData?.display_name,
+          }),
+        })
+      } catch {}
+
+      return NextResponse.json({ success: true, message: 'User approved successfully' })
+    }
+
+    if (action === 'reject') {
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ status: 'rejected' })
+        .eq('id', targetUserId)
+
+      if (updateError) throw updateError
+
+      // Record Audit Log
+      try {
+        await supabase.from('admin_audit_log').insert({
+          admin_user_id: adminUser.id,
+          action: 'REJECT_USER',
+          target_user_id: targetUserId,
+          details: {
+            previousStatus: targetUserData?.status || 'pending',
+            newStatus: 'rejected',
+            reason: reason || 'N/A',
+          },
+        })
+      } catch {}
+
+      // Trigger Email Notification
+      try {
+        await fetch(`${request.nextUrl.origin}/api/admin/notify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'USER_REJECTED',
+            userEmail: targetUserData?.email,
+            userName: targetUserData?.display_name,
+            reason: reason || 'N/A',
+          }),
+        })
+      } catch {}
+
+      return NextResponse.json({ success: true, message: 'User rejected successfully' })
     }
 
     if (action === 'delete') {
@@ -57,12 +141,14 @@ export async function POST(
       if (deleteError) throw deleteError
 
       // Record Audit Log
-      await supabase.from('admin_audit_log').insert({
-        admin_user_id: adminUser.id,
-        action: 'delete_user',
-        target_user_id: targetUserId,
-        details: { note: 'User deleted by admin' }
-      })
+      try {
+        await supabase.from('admin_audit_log').insert({
+          admin_user_id: adminUser.id,
+          action: 'delete_user',
+          target_user_id: targetUserId,
+          details: { note: 'User deleted by admin' }
+        })
+      } catch {}
 
       return NextResponse.json({ success: true, message: 'User deleted successfully' })
     }
@@ -76,12 +162,14 @@ export async function POST(
       if (updateError) throw updateError
 
       // Record Audit Log
-      await supabase.from('admin_audit_log').insert({
-        admin_user_id: adminUser.id,
-        action: 'suspend_user',
-        target_user_id: targetUserId,
-        details: { newStatus }
-      })
+      try {
+        await supabase.from('admin_audit_log').insert({
+          admin_user_id: adminUser.id,
+          action: 'suspend_user',
+          target_user_id: targetUserId,
+          details: { newStatus }
+        })
+      } catch {}
 
       return NextResponse.json({ success: true, message: `User status changed to ${newStatus}` })
     }
@@ -95,12 +183,14 @@ export async function POST(
       if (updateError) throw updateError
 
       // Record Audit Log
-      await supabase.from('admin_audit_log').insert({
-        admin_user_id: adminUser.id,
-        action: 'change_plan',
-        target_user_id: targetUserId,
-        details: { newPlan }
-      })
+      try {
+        await supabase.from('admin_audit_log').insert({
+          admin_user_id: adminUser.id,
+          action: 'change_plan',
+          target_user_id: targetUserId,
+          details: { newPlan }
+        })
+      } catch {}
 
       return NextResponse.json({ success: true, message: `User plan changed to ${newPlan}` })
     }

@@ -55,7 +55,7 @@ function LoginContent() {
       if (isSupabaseConfigured) {
         const { createClient } = await import('@/services/supabase/client')
         const supabase = createClient()
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
           email: data.email,
           password: data.password,
         })
@@ -71,6 +71,32 @@ function LoginContent() {
           }
           setIsLoading(false)
           return
+        }
+
+        // Check user status in users table
+        if (authData?.user) {
+          const { data: userProfile } = await supabase
+            .from('users')
+            .select('status')
+            .eq('id', authData.user.id)
+            .single()
+
+          const userStatus = userProfile?.status || authData.user.user_metadata?.status
+
+          if (userStatus === 'pending') {
+            toast('Akun kamu dalam antrian persetujuan admin.', 'info')
+            setTimeout(() => {
+              router.push('/onboarding/pending')
+            }, 800)
+            return
+          }
+
+          if (userStatus === 'suspended' || userStatus === 'rejected') {
+            await supabase.auth.signOut()
+            toast('Akun Anda disuspend atau pendaftaran belum diproses saat ini.', 'error')
+            setIsLoading(false)
+            return
+          }
         }
 
         toast('Masuk berhasil! Mengalihkan ke Dashboard...', 'success')

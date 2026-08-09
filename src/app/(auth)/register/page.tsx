@@ -56,13 +56,27 @@ function RegisterContent() {
       if (isSupabaseConfigured) {
         const { createClient } = await import('@/services/supabase/client')
         const supabase = createClient()
-        const { error } = await supabase.auth.signUp({
+
+        // Fetch approval gate toggle setting
+        let isApprovalRequired = true
+        try {
+          const settingRes = await fetch('/api/admin/settings')
+          if (settingRes.ok) {
+            const settingJson = await settingRes.json()
+            isApprovalRequired = settingJson.settings?.requireAdminApproval ?? true
+          }
+        } catch {}
+
+        const initialStatus = isApprovalRequired ? 'pending' : 'active'
+
+        const { data: signUpData, error } = await supabase.auth.signUp({
           email: data.email,
           password: data.password,
           options: {
             data: {
               display_name: data.name,
               phone: data.phone,
+              status: initialStatus,
             },
           },
         })
@@ -80,10 +94,31 @@ function RegisterContent() {
           return
         }
 
-        toast('Registrasi berhasil! Silakan cek email Anda untuk konfirmasi.', 'success')
-        setTimeout(() => {
-          router.push('/login')
-        }, 1500)
+        // Trigger Event Notification to Admin if Pending
+        if (isApprovalRequired) {
+          try {
+            await fetch('/api/admin/notify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                event: 'NEW_PENDING_USER',
+                userEmail: data.email,
+                userName: data.name,
+                registeredAt: new Date().toISOString(),
+              }),
+            })
+          } catch {}
+
+          toast('Registrasi berhasil! Akun kamu sedang dalam antrian approval admin (biasanya 1x24 jam).', 'success')
+          setTimeout(() => {
+            router.push('/login')
+          }, 2000)
+        } else {
+          toast('Registrasi berhasil! Silakan cek email Anda untuk konfirmasi.', 'success')
+          setTimeout(() => {
+            router.push('/login')
+          }, 1500)
+        }
         return
       }
 

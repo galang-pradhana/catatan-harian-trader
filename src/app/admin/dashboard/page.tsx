@@ -1,6 +1,7 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import Link from 'next/link'
 import {
   Users,
   UserCheck,
@@ -12,12 +13,98 @@ import {
   Crown,
   Database,
   RefreshCw,
-  Server
+  Server,
+  Clock,
+  Check,
+  X,
+  ShieldCheck,
+  Settings,
+  ToggleLeft,
+  ToggleRight,
+  ArrowRight,
 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { getAdminSettings, saveAdminSettings } from '@/utils/admin-settings-storage'
+
+interface PendingUserItem {
+  id: string
+  name: string
+  email: string
+  registeredAt: string
+}
+
+const initialPendingUsers: PendingUserItem[] = [
+  {
+    id: 'u-pending-1',
+    name: 'Rudi Pendjurnal',
+    email: 'rudi.trader@gmail.com',
+    registeredAt: '2026-08-09 09:30',
+  },
+  {
+    id: 'u-pending-2',
+    name: 'Dian Trader FX',
+    email: 'dian.scalper@yahoo.com',
+    registeredAt: '2026-08-09 10:15',
+  },
+]
 
 export default function AdminDashboardPage() {
+  const [pendingUsers, setPendingUsers] = useState<PendingUserItem[]>(initialPendingUsers)
+  const [requireApproval, setRequireApproval] = useState<boolean>(true)
+  const [isSavingSetting, setIsSavingSetting] = useState(false)
+
+  // Fetch Admin Settings
+  useEffect(() => {
+    fetch('/api/admin/settings')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.settings) {
+          setRequireApproval(json.settings.requireAdminApproval ?? true)
+        }
+      })
+      .catch(() => {
+        setRequireApproval(getAdminSettings().requireAdminApproval)
+      })
+  }, [])
+
+  const handleToggleSetting = async () => {
+    const nextVal = !requireApproval
+    setRequireApproval(nextVal)
+    saveAdminSettings({ requireAdminApproval: nextVal })
+    setIsSavingSetting(true)
+
+    try {
+      await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requireAdminApproval: nextVal }),
+      })
+    } catch {}
+    setIsSavingSetting(false)
+  }
+
+  const handleApproveUser = (id: string) => {
+    setPendingUsers((prev) => prev.filter((u) => u.id !== id))
+    fetch(`/api/admin/users/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'approve' }),
+    }).catch(() => {})
+  }
+
+  const handleRejectUser = (id: string) => {
+    setPendingUsers((prev) => prev.filter((u) => u.id !== id))
+    fetch(`/api/admin/users/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reject', reason: 'Quick rejected from dashboard' }),
+    }).catch(() => {})
+  }
+
   const metrics = {
     totalUsers: 142,
+    pendingUsersCount: pendingUsers.length,
     activeUsers7d: 89,
     activeUsers30d: 118,
     newSignupsThisWeek: 18,
@@ -29,26 +116,57 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-12">
       {/* Page Title Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Monitoring Kesehatan Sistem</h1>
+          <h1 className="text-xl font-extrabold text-foreground">Monitoring Kesehatan Sistem &amp; Gate Approval</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Metrik operasional aplikasi & kesiapan skala user (Target 1,000 User)
+            Metrik operasional aplikasi, persetujuan antrian user baru, &amp; pengaturan sistem
           </p>
         </div>
         <button
           onClick={() => window.location.reload()}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-colors w-fit"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-colors w-fit shadow-2xs cursor-pointer"
         >
           <RefreshCw className="h-3.5 w-3.5" />
           <span>Refresh Metrik</span>
         </button>
       </div>
 
-      {/* Main Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Main Metric Cards Grid (5 Cards Grid) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Metric 0: Menunggu Approval (Highlighted if > 0) */}
+        <div
+          className={cn(
+            'bg-card border rounded-2xl p-5 shadow-sm relative overflow-hidden transition-all',
+            metrics.pendingUsersCount > 0
+              ? 'border-amber-500/60 bg-amber-500/10 shadow-amber-500/10'
+              : 'border-border'
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-muted-foreground">Menunggu Approval</span>
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+              <Clock className="h-4 w-4 animate-pulse" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline justify-between">
+            <span className="text-2xl font-black text-foreground font-mono">{metrics.pendingUsersCount}</span>
+            {metrics.pendingUsersCount > 0 && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-black animate-pulse">
+                Antrian Aktif
+              </span>
+            )}
+          </div>
+          <div className="mt-3 pt-3 border-t border-border/50 text-[11px] text-muted-foreground flex justify-between">
+            <span>Status Approval Gate:</span>
+            <span className={cn('font-bold', requireApproval ? 'text-amber-400' : 'text-muted-foreground')}>
+              {requireApproval ? 'Wajib Approval' : 'Auto-Approve'}
+            </span>
+          </div>
+        </div>
+
         {/* Metric 1 */}
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between">
@@ -80,7 +198,7 @@ export default function AdminDashboardPage() {
           <div className="mt-3">
             <span className="text-2xl font-extrabold text-foreground">{metrics.activeUsers7d}</span>
             <span className="text-xs text-muted-foreground ml-2">
-              ({Math.round((metrics.activeUsers7d / metrics.totalUsers) * 100)}% dari total)
+              ({Math.round((metrics.activeUsers7d / metrics.totalUsers) * 100)}%)
             </span>
           </div>
           <div className="mt-3 pt-3 border-t border-border/50 text-[11px] text-muted-foreground flex justify-between">
@@ -128,6 +246,108 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* SECTION: PERSETUJUAN TERTUNDA (QUICK EXECUTION SECTION - Shown if pending > 0) */}
+      {pendingUsers.length > 0 && (
+        <div className="bg-card border border-amber-500/40 rounded-3xl p-6 shadow-md space-y-4 bg-gradient-to-br from-card to-amber-500/5">
+          <div className="flex items-center justify-between border-b border-border/80 pb-3">
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-amber-400 animate-pulse" />
+              <h2 className="text-base font-extrabold text-foreground">
+                Persetujuan Tertunda ({pendingUsers.length} Antrian User)
+              </h2>
+            </div>
+
+            <Link
+              href="/admin/users?status=pending"
+              className="text-xs font-bold text-amber-400 hover:underline inline-flex items-center gap-1"
+            >
+              <span>Lihat Semua di User Management</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {pendingUsers.map((u) => (
+              <div
+                key={u.id}
+                className="p-4 rounded-2xl bg-background border border-border flex items-center justify-between gap-3 text-xs"
+              >
+                <div>
+                  <h4 className="font-extrabold text-foreground">{u.name}</h4>
+                  <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{u.email}</p>
+                  <span className="text-[10px] text-muted-foreground font-mono block mt-1">
+                    📅 Daftar: {u.registeredAt}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    onClick={() => handleApproveUser(u.id)}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs h-8 px-3 cursor-pointer shadow-2xs"
+                  >
+                    <Check className="h-3.5 w-3.5 mr-1" /> Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => handleRejectUser(u.id)}
+                    className="font-bold text-xs h-8 px-3 cursor-pointer shadow-2xs"
+                  >
+                    <X className="h-3.5 w-3.5 mr-1" /> Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SECTION: PENGATURAN PENDAFTARAN (APPROVAL GATE TOGGLE) */}
+      <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center gap-2">
+            <Settings className="h-5 w-5 text-primary" />
+            <h2 className="text-base font-extrabold text-foreground">
+              Pengaturan Mode Approval Admin &amp; Pendaftaran
+            </h2>
+          </div>
+          <span className="text-[11px] font-mono text-muted-foreground">Konfigurasi Sistem</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-muted/20 border border-border flex items-center justify-between gap-4">
+          <div className="space-y-1 max-w-2xl">
+            <h3 className="text-sm font-extrabold text-foreground flex items-center gap-2">
+              Wajib Approval Admin untuk User Baru
+              <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-bold border', requireApproval ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-muted text-muted-foreground border-border')}>
+                {requireApproval ? 'Aktif (Manual Approval)' : 'Non-aktif (Auto-Approve)'}
+              </span>
+            </h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Jika diaktifkan (<strong className="text-foreground">ON</strong>), seluruh user baru yang mendaftar akan berstatus <strong className="text-amber-400">Pending</strong> hingga disetujui oleh admin. Jika dinonaktifkan (<strong className="text-foreground">OFF</strong>), pendaftaran user baru langsung berstatus <strong className="text-emerald-400">Active</strong> secara otomatis.
+            </p>
+          </div>
+
+          {/* Toggle Button */}
+          <button
+            type="button"
+            onClick={handleToggleSetting}
+            disabled={isSavingSetting}
+            className={cn(
+              'w-14 h-8 rounded-full transition-colors relative focus:outline-none p-1 cursor-pointer shrink-0 border',
+              requireApproval ? 'bg-amber-500 border-amber-400' : 'bg-muted border-border'
+            )}
+          >
+            <div
+              className={cn(
+                'w-6 h-6 rounded-full bg-white transition-transform shadow-md',
+                requireApproval ? 'translate-x-6' : 'translate-x-0'
+              )}
+            />
+          </button>
+        </div>
+      </div>
+
       {/* System Operational Status & Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Health Monitoring */}
@@ -135,7 +355,7 @@ export default function AdminDashboardPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
               <Server className="h-4 w-4 text-amber-500" />
-              <span>Status Infrastruktur & Database</span>
+              <span>Status Infrastruktur &amp; Database</span>
             </h2>
             <span className="text-xs text-emerald-500 font-semibold flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Healthy
