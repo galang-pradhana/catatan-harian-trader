@@ -51,6 +51,12 @@ export async function GET(request: NextRequest) {
       .select('*', { count: 'exact', head: true })
       .eq('status', 'error')
 
+    const { data: errorConnectionsList } = await dbClient
+      .from('mt5_connections')
+      .select('id, name, account_number, status, last_sync_at, users(email, display_name)')
+      .eq('status', 'error')
+      .limit(10)
+
     const { count: totalTradesSynced } = await dbClient
       .from('trades')
       .select('*', { count: 'exact', head: true })
@@ -72,6 +78,7 @@ export async function GET(request: NextRequest) {
         activeUsers7d: activeUsers7d || 0,
         totalMt5Connections: totalMt5Connections || 0,
         errorMt5Connections: errorMt5Connections || 0,
+        errorConnectionsList: errorConnectionsList || [],
         totalTradesSynced: totalTradesSynced || 0,
         freeUsers: freeUsers || 0,
         premiumUsers: premiumUsers || 0,

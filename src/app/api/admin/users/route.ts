@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     let query = dbClient
       .from('users')
-      .select('id, display_name, email, role, plan, status, last_active_at, created_at')
+      .select('id, display_name, email, role, plan, status, last_active_at, created_at, mt5_connections(id)')
       .order('created_at', { ascending: false })
 
     if (search) {
@@ -56,9 +56,14 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
+    const mappedUsers = (usersList || []).map((u: any) => ({
+      ...u,
+      mt5ConnectionsCount: Array.isArray(u.mt5_connections) ? u.mt5_connections.length : 0,
+    }))
+
     return NextResponse.json({
       success: true,
-      users: usersList || []
+      users: mappedUsers,
     })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

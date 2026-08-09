@@ -18,6 +18,7 @@ import {
   Check,
   X,
   ShieldCheck,
+  CheckCircle2,
   Settings,
   ToggleLeft,
   ToggleRight,
@@ -128,16 +129,16 @@ export default function AdminDashboardPage() {
   }
 
   const metrics = {
-    totalUsers: realMetrics?.totalUsers ?? 142,
+    totalUsers: realMetrics?.totalUsers ?? 0,
     pendingUsersCount: pendingUsers.length,
-    activeUsers7d: realMetrics?.activeUsers7d ?? 89,
-    activeUsers30d: realMetrics?.activeUsers30d ?? 118,
-    newSignupsThisWeek: 18,
-    totalMt5Connections: realMetrics?.totalMt5Connections ?? 95,
-    errorMt5Connections: realMetrics?.errorMt5Connections ?? 3,
-    totalSyncedTrades: realMetrics?.totalTradesSynced ?? 14520,
-    freeUsers: realMetrics?.freeUsers ?? 130,
-    premiumUsers: realMetrics?.premiumUsers ?? 12,
+    activeUsers7d: realMetrics?.activeUsers7d ?? 0,
+    activeUsers30d: realMetrics?.activeUsers7d ?? 0,
+    newSignupsThisWeek: realMetrics?.totalUsers ?? 0,
+    totalMt5Connections: realMetrics?.totalMt5Connections ?? 0,
+    errorMt5Connections: realMetrics?.errorMt5Connections ?? 0,
+    totalSyncedTrades: realMetrics?.totalTradesSynced ?? 0,
+    freeUsers: realMetrics?.freeUsers ?? 0,
+    premiumUsers: realMetrics?.premiumUsers ?? 0,
   }
 
   return (
@@ -423,34 +424,39 @@ export default function AdminDashboardPage() {
         {/* Right Column: Technical Connection Issues summary */}
         <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+            {metrics.errorMt5Connections > 0 ? (
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            ) : (
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            )}
             <span>Koneksi MT5 Bermasalah ({metrics.errorMt5Connections})</span>
           </h2>
-          <p className="text-xs text-muted-foreground">
-            User dengan status EA `error` dalam 24 jam terakhir:
-          </p>
 
-          <div className="space-y-3">
-            <div className="p-3 rounded-xl border border-border bg-muted/20 text-xs space-y-1">
-              <div className="flex justify-between font-semibold">
-                <span className="text-foreground">budi.trader@gmail.com</span>
-                <span className="text-destructive font-mono text-[10px]">HTTP 401</span>
+          {metrics.errorMt5Connections === 0 ? (
+            <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-400 space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Seluruh koneksi MT5 berjalan normal
               </div>
-              <p className="text-[11px] text-muted-foreground truncate">
-                Token sync invalid / EA dicopot
+              <p className="text-[11px] text-muted-foreground">
+                Tidak ada koneksi EA atau akun terhubung yang mengalami error.
               </p>
             </div>
-
-            <div className="p-3 rounded-xl border border-border bg-muted/20 text-xs space-y-1">
-              <div className="flex justify-between font-semibold">
-                <span className="text-foreground">andi.fx@yahoo.com</span>
-                <span className="text-amber-500 font-mono text-[10px]">TIMEOUT</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground truncate">
-                Tidak ada sync selama &gt; 48 jam
-              </p>
+          ) : (
+            <div className="space-y-3">
+              {(realMetrics?.errorConnectionsList || []).map((conn: any) => (
+                <div key={conn.id} className="p-3 rounded-xl border border-border bg-muted/20 text-xs space-y-1">
+                  <div className="flex justify-between font-semibold">
+                    <span className="text-foreground">{conn.users?.email || conn.name}</span>
+                    <span className="text-destructive font-mono text-[10px]">ERROR</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    Akun: #{conn.account_number || conn.id}
+                  </p>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -112,7 +112,7 @@ function AdminUsersContent() {
             email: u.email || 'Tanpa Email',
             status: (u.status as any) || 'active',
             plan: (u.plan as any) || 'free',
-            mt5Connections: 0,
+            mt5Connections: typeof u.mt5ConnectionsCount === 'number' ? u.mt5ConnectionsCount : 0,
             registeredAt: u.created_at ? new Date(u.created_at).toISOString().slice(0, 10) : '-',
             lastActiveAt: u.last_active_at ? new Date(u.last_active_at).toLocaleString('id-ID') : 'Belum Aktif',
           }))
