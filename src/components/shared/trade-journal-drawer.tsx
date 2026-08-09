@@ -19,9 +19,12 @@ import {
   Check,
   AlertTriangle,
   Layers,
-  Link2
+  Link2,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
 } from 'lucide-react'
-import { Trade, SelfGrade, MoodType } from '@/types/trade'
+import { Trade, SelfGrade, MoodType, TradeScreenshot } from '@/types/trade'
 import { analyzeTradeExit, computeTradeActualRR } from '@/utils/trade-metrics'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -118,6 +121,17 @@ async function uploadScreenshotApi(tradeId: string, file: File, type: 'entry' | 
   return res.json()
 }
 
+async function deleteScreenshotApi(tradeId: string, screenshotId: string) {
+  const res = await fetch(`/api/trades/${tradeId}/screenshots?screenshotId=${screenshotId}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.message || 'Gagal menghapus screenshot')
+  }
+  return res.json()
+}
+
 async function createStrategyApi(name: string, color = '#D4A94C') {
   const res = await fetch('/api/strategies', {
     method: 'POST',
@@ -205,6 +219,8 @@ export function TradeJournalDrawer({
   const [selectedMistakes, setSelectedMistakes] = useState<string[]>([])
   const [editSl, setEditSl] = useState<string>('')
   const [editTp, setEditTp] = useState<string>('')
+  const [screenshots, setScreenshots] = useState<TradeScreenshot[]>([])
+  const [isUploadingScreenshot, setIsUploadingScreenshot] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
 
   // Fetch Existing Trade Detail (Single Trade Mode)
@@ -282,6 +298,7 @@ export function TradeJournalDrawer({
         setGroupName(trade.groupName || trade.trade_journal?.group_name || '')
         setEditSl(trade.sl ? String(trade.sl) : '')
         setEditTp(trade.tp ? String(trade.tp) : '')
+        setScreenshots(trade.trade_screenshots || [])
         const j = trade.trade_journal
         const autoComputedRR = computeTradeActualRR(trade)
         if (j) {
@@ -1258,6 +1275,163 @@ export function TradeJournalDrawer({
                         placeholder="Pelajaran atau hal yang perlu dievaluasi..."
                         className="w-full bg-background border border-border rounded-xl p-2 text-xs focus:outline-none focus:border-emerald-500"
                       />
+                    </div>
+
+                    {/* Screenshot Upload (SS Entry & SS Exit) */}
+                    <div className="space-y-2 pt-2 border-t border-border/50">
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-foreground flex items-center gap-1.5 text-xs">
+                          <ImageIcon className="h-4 w-4 text-amber-400" />
+                          <span>Bukti Chart Trading (SS Entry &amp; SS Exit)</span>
+                        </label>
+                        <span className="text-[10px] text-muted-foreground">Format JPG, PNG, WebP (&lt; 5MB)</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* SS Entry Box */}
+                        {(() => {
+                          const entryShot = screenshots.find((s) => s.type === 'entry')
+                          return (
+                            <div className="p-3 rounded-xl bg-background border border-border space-y-2 text-center relative group">
+                              <span className="text-[10px] font-extrabold uppercase text-emerald-400 block">
+                                SS Entry Chart
+                              </span>
+
+                              {entryShot ? (
+                                <div className="relative rounded-lg overflow-hidden border border-border aspect-video group">
+                                  <img
+                                    src={entryShot.url}
+                                    alt="SS Entry"
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      const currentId = tradeId || trade?.id
+                                      if (!currentId) return
+                                      try {
+                                        await deleteScreenshotApi(currentId, entryShot.id)
+                                        setScreenshots((prev) => prev.filter((s) => s.id !== entryShot.id))
+                                        toast('Screenshot Entry dihapus', 'info')
+                                      } catch (err: any) {
+                                        toast(err.message || 'Gagal menghapus', 'error')
+                                      }
+                                    }}
+                                    className="absolute top-1 right-1 p-1 rounded-md bg-black/70 text-destructive hover:bg-destructive hover:text-white transition-colors"
+                                    title="Hapus SS Entry"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <label className="flex flex-col items-center justify-center p-3 rounded-lg border border-dashed border-border hover:border-amber-500/60 bg-muted/20 hover:bg-muted/40 cursor-pointer transition-all">
+                                  <Upload className="h-4 w-4 text-muted-foreground mb-1" />
+                                  <span className="text-[11px] font-bold text-foreground">Upload SS Entry</span>
+                                  <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    className="hidden"
+                                    disabled={isUploadingScreenshot}
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0]
+                                      if (!file) return
+                                      const currentId = tradeId || trade?.id
+                                      if (!currentId) {
+                                        toast('Simpan trade terlebih dahulu sebelum mengupload screenshot', 'info')
+                                        return
+                                      }
+                                      setIsUploadingScreenshot(true)
+                                      try {
+                                        const res = await uploadScreenshotApi(currentId, file, 'entry')
+                                        if (res.screenshot) {
+                                          setScreenshots((prev) => [...prev.filter((s) => s.type !== 'entry'), res.screenshot])
+                                          toast('Screenshot Entry berhasil diupload!', 'success')
+                                        }
+                                      } catch (err: any) {
+                                        toast(err.message || 'Gagal upload', 'error')
+                                      } finally {
+                                        setIsUploadingScreenshot(false)
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          )
+                        })()}
+
+                        {/* SS Exit Box */}
+                        {(() => {
+                          const exitShot = screenshots.find((s) => s.type === 'exit')
+                          return (
+                            <div className="p-3 rounded-xl bg-background border border-border space-y-2 text-center relative group">
+                              <span className="text-[10px] font-extrabold uppercase text-amber-400 block">
+                                SS Exit Chart
+                              </span>
+
+                              {exitShot ? (
+                                <div className="relative rounded-lg overflow-hidden border border-border aspect-video group">
+                                  <img
+                                    src={exitShot.url}
+                                    alt="SS Exit"
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      const currentId = tradeId || trade?.id
+                                      if (!currentId) return
+                                      try {
+                                        await deleteScreenshotApi(currentId, exitShot.id)
+                                        setScreenshots((prev) => prev.filter((s) => s.id !== exitShot.id))
+                                        toast('Screenshot Exit dihapus', 'info')
+                                      } catch (err: any) {
+                                        toast(err.message || 'Gagal menghapus', 'error')
+                                      }
+                                    }}
+                                    className="absolute top-1 right-1 p-1 rounded-md bg-black/70 text-destructive hover:bg-destructive hover:text-white transition-colors"
+                                    title="Hapus SS Exit"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <label className="flex flex-col items-center justify-center p-3 rounded-lg border border-dashed border-border hover:border-amber-500/60 bg-muted/20 hover:bg-muted/40 cursor-pointer transition-all">
+                                  <Upload className="h-4 w-4 text-muted-foreground mb-1" />
+                                  <span className="text-[11px] font-bold text-foreground">Upload SS Exit</span>
+                                  <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    className="hidden"
+                                    disabled={isUploadingScreenshot}
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0]
+                                      if (!file) return
+                                      const currentId = tradeId || trade?.id
+                                      if (!currentId) {
+                                        toast('Simpan trade terlebih dahulu sebelum mengupload screenshot', 'info')
+                                        return
+                                      }
+                                      setIsUploadingScreenshot(true)
+                                      try {
+                                        const res = await uploadScreenshotApi(currentId, file, 'exit')
+                                        if (res.screenshot) {
+                                          setScreenshots((prev) => [...prev.filter((s) => s.type !== 'exit'), res.screenshot])
+                                          toast('Screenshot Exit berhasil diupload!', 'success')
+                                        }
+                                      } catch (err: any) {
+                                        toast(err.message || 'Gagal upload', 'error')
+                                      } finally {
+                                        setIsUploadingScreenshot(false)
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </div>
                     </div>
                   </div>
                 )}
