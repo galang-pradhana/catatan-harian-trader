@@ -35,7 +35,7 @@ import { createClient } from '@/services/supabase/client'
 export const navItems = [
   { href: '/dashboard',   label: 'Dashboard',         icon: LayoutDashboard },
   { href: '/trades',      label: 'Jurnal Trading',    icon: BookOpen },
-  { href: '/compounding', label: 'Compounding',       icon: Calculator },
+  { href: '/compounding', label: 'Target & Compounding', icon: Calculator },
   { href: '/statistics',  label: 'Statistik',         icon: BarChart3 },
   { href: '/analysis',    label: 'Analisis',          icon: Lightbulb },
   { href: '/psychology',  label: 'Psikologi Trading', icon: Brain },

@@ -356,7 +356,7 @@ function CompoundingContent() {
               <Calculator className="h-5 w-5" />
             </div>
             <h1 className="text-xl font-extrabold text-foreground tracking-tight">
-              Compounding &amp; Target Trading
+              Target &amp; Roadmap Compounding
             </h1>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -396,7 +396,7 @@ function CompoundingContent() {
           )}
         >
           <Calculator className="h-4 w-4" />
-          <span>Target Modal &amp; Barang</span>
+          <span>Compounding &amp; Target Barang</span>
         </button>
 
         <button
