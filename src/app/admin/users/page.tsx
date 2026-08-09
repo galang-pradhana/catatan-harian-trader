@@ -93,10 +93,42 @@ function AdminUsersContent() {
   const searchParams = useSearchParams()
   const statusParam = searchParams.get('status')
 
-  const [users, setUsers] = useState<UserItem[]>(initialUsers)
+  const [users, setUsers] = useState<UserItem[]>([])
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPlan, setSelectedPlan] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>(statusParam || 'all')
+
+  const fetchRealUsers = async () => {
+    setIsLoadingUsers(true)
+    try {
+      const res = await fetch('/api/admin/users')
+      if (res.ok) {
+        const json = await res.json()
+        if (Array.isArray(json.users) && json.users.length > 0) {
+          const mapped: UserItem[] = json.users.map((u: any) => ({
+            id: u.id,
+            name: u.display_name || u.email?.split('@')[0] || 'User',
+            email: u.email || 'Tanpa Email',
+            status: (u.status as any) || 'active',
+            plan: (u.plan as any) || 'free',
+            mt5Connections: 0,
+            registeredAt: u.created_at ? new Date(u.created_at).toISOString().slice(0, 10) : '-',
+            lastActiveAt: u.last_active_at ? new Date(u.last_active_at).toLocaleString('id-ID') : 'Belum Aktif',
+          }))
+          setUsers(mapped)
+          setIsLoadingUsers(false)
+          return
+        }
+      }
+    } catch {}
+    setUsers(initialUsers)
+    setIsLoadingUsers(false)
+  }
+
+  useEffect(() => {
+    fetchRealUsers()
+  }, [])
 
   useEffect(() => {
     if (statusParam) {

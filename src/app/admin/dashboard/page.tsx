@@ -50,11 +50,12 @@ const initialPendingUsers: PendingUserItem[] = [
 ]
 
 export default function AdminDashboardPage() {
-  const [pendingUsers, setPendingUsers] = useState<PendingUserItem[]>(initialPendingUsers)
+  const [pendingUsers, setPendingUsers] = useState<PendingUserItem[]>([])
   const [requireApproval, setRequireApproval] = useState<boolean>(true)
   const [isSavingSetting, setIsSavingSetting] = useState(false)
+  const [realMetrics, setRealMetrics] = useState<any>(null)
 
-  // Fetch Admin Settings
+  // Fetch Admin Settings & Real Pending Users & Metrics
   useEffect(() => {
     fetch('/api/admin/settings')
       .then((res) => res.json())
@@ -66,6 +67,30 @@ export default function AdminDashboardPage() {
       .catch(() => {
         setRequireApproval(getAdminSettings().requireAdminApproval)
       })
+
+    // Fetch real metrics
+    fetch('/api/admin/metrics')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.metrics) setRealMetrics(json.metrics)
+      })
+      .catch(() => {})
+
+    // Fetch real pending users
+    fetch('/api/admin/users?status=pending')
+      .then((res) => res.json())
+      .then((json) => {
+        if (Array.isArray(json.users)) {
+          const mapped: PendingUserItem[] = json.users.map((u: any) => ({
+            id: u.id,
+            name: u.display_name || u.email?.split('@')[0] || 'User',
+            email: u.email || 'Tanpa Email',
+            registeredAt: u.created_at ? new Date(u.created_at).toLocaleString('id-ID') : '-',
+          }))
+          setPendingUsers(mapped)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const handleToggleSetting = async () => {
@@ -103,16 +128,16 @@ export default function AdminDashboardPage() {
   }
 
   const metrics = {
-    totalUsers: 142,
+    totalUsers: realMetrics?.totalUsers ?? 142,
     pendingUsersCount: pendingUsers.length,
-    activeUsers7d: 89,
-    activeUsers30d: 118,
+    activeUsers7d: realMetrics?.activeUsers7d ?? 89,
+    activeUsers30d: realMetrics?.activeUsers30d ?? 118,
     newSignupsThisWeek: 18,
-    totalMt5Connections: 95,
-    errorMt5Connections: 3,
-    totalSyncedTrades: 14520,
-    freeUsers: 130,
-    premiumUsers: 12,
+    totalMt5Connections: realMetrics?.totalMt5Connections ?? 95,
+    errorMt5Connections: realMetrics?.errorMt5Connections ?? 3,
+    totalSyncedTrades: realMetrics?.totalTradesSynced ?? 14520,
+    freeUsers: realMetrics?.freeUsers ?? 130,
+    premiumUsers: realMetrics?.premiumUsers ?? 12,
   }
 
   return (
