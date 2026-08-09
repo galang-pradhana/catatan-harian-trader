@@ -13,8 +13,8 @@ const JournalSchema = z.object({
   planned_rr:      z.number().min(0).optional(),
   actual_rr:       z.number().optional(),
   self_grade:      z.enum(['A', 'B', 'C', 'D', 'F']).optional(),
-  strategy_ids:    z.array(z.string().uuid()).optional(),
-  mistake_tag_ids: z.array(z.string().uuid()).optional(),
+  strategy_ids:    z.array(z.string()).optional(),
+  mistake_tag_ids: z.array(z.string()).optional(),
 })
 
 // PUT /api/trades/[id]/journal — Upsert journal for a trade
@@ -123,22 +123,32 @@ export async function PUT(
 
     // Sync strategy pivot table
     if (strategy_ids !== undefined) {
-      await supabase.from('trade_strategies').delete().eq('trade_id', id)
-      if (strategy_ids.length > 0) {
-        await supabase.from('trade_strategies').insert(
-          strategy_ids.map((sid) => ({ trade_id: id, strategy_id: sid }))
+      try {
+        await supabase.from('trade_strategies').delete().eq('trade_id', id)
+        const validUuidStrats = strategy_ids.filter((sid) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sid)
         )
-      }
+        if (validUuidStrats.length > 0) {
+          await supabase.from('trade_strategies').insert(
+            validUuidStrats.map((sid) => ({ trade_id: id, strategy_id: sid }))
+          )
+        }
+      } catch {}
     }
 
     // Sync mistake tags pivot table
     if (mistake_tag_ids !== undefined) {
-      await supabase.from('trade_mistakes').delete().eq('trade_id', id)
-      if (mistake_tag_ids.length > 0) {
-        await supabase.from('trade_mistakes').insert(
-          mistake_tag_ids.map((mid) => ({ trade_id: id, mistake_tag_id: mid }))
+      try {
+        await supabase.from('trade_mistakes').delete().eq('trade_id', id)
+        const validUuidMistakes = mistake_tag_ids.filter((mid) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mid)
         )
-      }
+        if (validUuidMistakes.length > 0) {
+          await supabase.from('trade_mistakes').insert(
+            validUuidMistakes.map((mid) => ({ trade_id: id, mistake_tag_id: mid }))
+          )
+        }
+      } catch {}
     }
 
     return NextResponse.json({
