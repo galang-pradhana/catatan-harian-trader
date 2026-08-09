@@ -528,19 +528,25 @@ export function TradeJournalDrawer({
 
       if (!targetId) throw new Error('ID Trade tidak valid')
 
+      const cleanNum = (v: any) => {
+        if (v === undefined || v === null || v === '') return undefined
+        const num = Number(v)
+        return Number.isNaN(num) ? undefined : num
+      }
+
       // Case B: Save Single Journal Details
       await saveJournalMutation.mutateAsync({
         id: targetId,
         payload: {
-          sl: editSl ? Number(editSl) : null,
-          tp: editTp ? Number(editTp) : null,
+          sl: cleanNum(editSl),
+          tp: cleanNum(editTp),
           reason_entry: reasonEntry || undefined,
           mood: mood || undefined,
           discipline: discipline || undefined,
           lesson_learned: lessonLearned || undefined,
-          risk_percent: riskPercent,
-          planned_rr: plannedRR,
-          actual_rr: actualRR,
+          risk_percent: cleanNum(riskPercent),
+          planned_rr: cleanNum(plannedRR),
+          actual_rr: cleanNum(actualRR),
           self_grade: selfGrade || undefined,
           strategy_ids: selectedStrategies,
           mistake_tag_ids: selectedMistakes,

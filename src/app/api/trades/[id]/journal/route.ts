@@ -3,16 +3,16 @@ import { z } from 'zod'
 import { createClient } from '@/services/supabase/server'
 
 const JournalSchema = z.object({
-  sl:              z.number().nullable().optional(),
-  tp:              z.number().nullable().optional(),
-  reason_entry:    z.string().max(2000).optional(),
-  mood:            z.string().optional(),
-  discipline:      z.enum(['yes', 'no']).optional(),
-  lesson_learned:  z.string().max(2000).optional(),
-  risk_percent:    z.number().min(0).max(100).optional(),
-  planned_rr:      z.number().min(0).optional(),
-  actual_rr:       z.number().optional(),
-  self_grade:      z.enum(['A', 'B', 'C', 'D', 'F']).optional(),
+  sl:              z.any().optional(),
+  tp:              z.any().optional(),
+  reason_entry:    z.string().optional().nullable(),
+  mood:            z.string().optional().nullable(),
+  discipline:      z.any().optional().nullable(),
+  lesson_learned:  z.string().optional().nullable(),
+  risk_percent:    z.any().optional().nullable(),
+  planned_rr:      z.any().optional().nullable(),
+  actual_rr:       z.any().optional().nullable(),
+  self_grade:      z.any().optional().nullable(),
   strategy_ids:    z.array(z.string()).optional(),
   mistake_tag_ids: z.array(z.string()).optional(),
 })
@@ -38,13 +38,30 @@ export async function PUT(
     const body = await request.json()
     const parsed = JournalSchema.safeParse(body)
     if (!parsed.success) {
+      const errDetail = JSON.stringify(parsed.error.flatten().fieldErrors)
       return NextResponse.json(
-        { error: 'INVALID_PAYLOAD', message: 'Data tidak valid', details: parsed.error.flatten() },
+        { error: 'INVALID_PAYLOAD', message: `Data tidak valid: ${errDetail}` },
         { status: 400 }
       )
     }
 
-    const { strategy_ids, mistake_tag_ids, sl, tp, ...journalFields } = parsed.data
+    const { strategy_ids, mistake_tag_ids, sl, tp, ...rawJournalFields } = parsed.data
+
+    const sanitizeNum = (v: any) => {
+      if (v === null || v === undefined || v === '') return null
+      const n = Number(v)
+      return Number.isNaN(n) ? null : n
+    }
+
+    const cleanSl = sanitizeNum(sl)
+    const cleanTp = sanitizeNum(tp)
+
+    const journalFields = {
+      ...rawJournalFields,
+      risk_percent: sanitizeNum(rawJournalFields.risk_percent),
+      planned_rr:   sanitizeNum(rawJournalFields.planned_rr),
+      actual_rr:    sanitizeNum(rawJournalFields.actual_rr),
+    }
 
     // Verify trade ownership
     const { data: trade, error: tradeErr } = await supabase
@@ -62,12 +79,12 @@ export async function PUT(
     }
 
     // Update sl & tp on trades table if provided
-    if (sl !== undefined || tp !== undefined) {
+    if (cleanSl !== null || cleanTp !== null) {
       await supabase
         .from('trades')
         .update({
-          ...(sl !== undefined ? { sl } : {}),
-          ...(tp !== undefined ? { tp } : {}),
+          ...(cleanSl !== null ? { sl: cleanSl } : {}),
+          ...(cleanTp !== null ? { tp: cleanTp } : {}),
         })
         .eq('id', id)
         .eq('user_id', user.id)
