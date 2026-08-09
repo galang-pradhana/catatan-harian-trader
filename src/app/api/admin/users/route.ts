@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
+import { createAdminClient } from '@/services/supabase/admin'
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,7 +27,17 @@ export async function GET(request: NextRequest) {
     const plan = searchParams.get('plan')
     const status = searchParams.get('status')
 
-    let query = supabase
+    // Use admin client to bypass RLS policies if SUPABASE_SERVICE_ROLE_KEY is set
+    let dbClient: any = supabase
+    try {
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        dbClient = createAdminClient()
+      }
+    } catch {
+      dbClient = supabase
+    }
+
+    let query = dbClient
       .from('users')
       .select('id, display_name, email, role, plan, status, last_active_at, created_at')
       .order('created_at', { ascending: false })

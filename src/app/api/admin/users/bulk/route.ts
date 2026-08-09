@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
+import { createAdminClient } from '@/services/supabase/admin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,8 +28,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Action and non-empty userIds array are required' }, { status: 400 })
     }
 
+    let dbClient: any = supabase
+    try {
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        dbClient = createAdminClient()
+      }
+    } catch {
+      dbClient = supabase
+    }
+
     if (action === 'approve_bulk') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await dbClient
         .from('users')
         .update({ status: 'active' })
         .in('id', userIds)
@@ -43,7 +53,7 @@ export async function POST(request: NextRequest) {
           target_user_id: id,
           details: { note: 'Bulk approved by admin' },
         }))
-        await supabase.from('admin_audit_log').insert(auditEntries)
+        await dbClient.from('admin_audit_log').insert(auditEntries)
       } catch {}
 
       return NextResponse.json({
@@ -53,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'reject_bulk') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await dbClient
         .from('users')
         .update({ status: 'rejected' })
         .in('id', userIds)
@@ -68,7 +78,7 @@ export async function POST(request: NextRequest) {
           target_user_id: id,
           details: { note: 'Bulk rejected by admin', reason: reason || 'N/A' },
         }))
-        await supabase.from('admin_audit_log').insert(auditEntries)
+        await dbClient.from('admin_audit_log').insert(auditEntries)
       } catch {}
 
       return NextResponse.json({

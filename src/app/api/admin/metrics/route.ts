@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
+import { createAdminClient } from '@/services/supabase/admin'
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,36 +22,45 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
     }
 
+    let dbClient: any = supabase
+    try {
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        dbClient = createAdminClient()
+      }
+    } catch {
+      dbClient = supabase
+    }
+
     // Fetch aggregate statistics
-    const { count: totalUsers } = await supabase
+    const { count: totalUsers } = await dbClient
       .from('users')
       .select('*', { count: 'exact', head: true })
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    const { count: activeUsers7d } = await supabase
+    const { count: activeUsers7d } = await dbClient
       .from('users')
       .select('*', { count: 'exact', head: true })
       .gte('last_active_at', sevenDaysAgo)
 
-    const { count: totalMt5Connections } = await supabase
+    const { count: totalMt5Connections } = await dbClient
       .from('mt5_connections')
       .select('*', { count: 'exact', head: true })
 
-    const { count: errorMt5Connections } = await supabase
+    const { count: errorMt5Connections } = await dbClient
       .from('mt5_connections')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'error')
 
-    const { count: totalTradesSynced } = await supabase
+    const { count: totalTradesSynced } = await dbClient
       .from('trades')
       .select('*', { count: 'exact', head: true })
 
-    const { count: freeUsers } = await supabase
+    const { count: freeUsers } = await dbClient
       .from('users')
       .select('*', { count: 'exact', head: true })
       .eq('plan', 'free')
 
-    const { count: premiumUsers } = await supabase
+    const { count: premiumUsers } = await dbClient
       .from('users')
       .select('*', { count: 'exact', head: true })
       .eq('plan', 'premium')

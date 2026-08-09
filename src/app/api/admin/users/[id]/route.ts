@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
+import { createAdminClient } from '@/services/supabase/admin'
 
 export async function POST(
   request: NextRequest,
@@ -40,15 +41,24 @@ export async function POST(
       return NextResponse.json({ error: 'Action type is required' }, { status: 400 })
     }
 
+    let dbClient: any = supabase
+    try {
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        dbClient = createAdminClient()
+      }
+    } catch {
+      dbClient = supabase
+    }
+
     // Fetch Target User Info
-    const { data: targetUserData } = await supabase
+    const { data: targetUserData } = await dbClient
       .from('users')
       .select('email, display_name, status')
       .eq('id', targetUserId)
       .single()
 
     if (action === 'approve') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await dbClient
         .from('users')
         .update({ status: 'active' })
         .eq('id', targetUserId)
@@ -57,7 +67,7 @@ export async function POST(
 
       // Record Audit Log
       try {
-        await supabase.from('admin_audit_log').insert({
+        await dbClient.from('admin_audit_log').insert({
           admin_user_id: adminUser.id,
           action: 'APPROVE_USER',
           target_user_id: targetUserId,
@@ -86,7 +96,7 @@ export async function POST(
     }
 
     if (action === 'reject') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await dbClient
         .from('users')
         .update({ status: 'rejected' })
         .eq('id', targetUserId)
@@ -95,7 +105,7 @@ export async function POST(
 
       // Record Audit Log
       try {
-        await supabase.from('admin_audit_log').insert({
+        await dbClient.from('admin_audit_log').insert({
           admin_user_id: adminUser.id,
           action: 'REJECT_USER',
           target_user_id: targetUserId,
@@ -133,7 +143,7 @@ export async function POST(
       }
 
       // Execute deletion
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await dbClient
         .from('users')
         .delete()
         .eq('id', targetUserId)
@@ -142,7 +152,7 @@ export async function POST(
 
       // Record Audit Log
       try {
-        await supabase.from('admin_audit_log').insert({
+        await dbClient.from('admin_audit_log').insert({
           admin_user_id: adminUser.id,
           action: 'delete_user',
           target_user_id: targetUserId,
@@ -154,7 +164,7 @@ export async function POST(
     }
 
     if (action === 'suspend') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await dbClient
         .from('users')
         .update({ status: newStatus })
         .eq('id', targetUserId)
@@ -163,7 +173,7 @@ export async function POST(
 
       // Record Audit Log
       try {
-        await supabase.from('admin_audit_log').insert({
+        await dbClient.from('admin_audit_log').insert({
           admin_user_id: adminUser.id,
           action: 'suspend_user',
           target_user_id: targetUserId,
@@ -175,7 +185,7 @@ export async function POST(
     }
 
     if (action === 'change_plan') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await dbClient
         .from('users')
         .update({ plan: newPlan })
         .eq('id', targetUserId)
@@ -184,7 +194,7 @@ export async function POST(
 
       // Record Audit Log
       try {
-        await supabase.from('admin_audit_log').insert({
+        await dbClient.from('admin_audit_log').insert({
           admin_user_id: adminUser.id,
           action: 'change_plan',
           target_user_id: targetUserId,
