@@ -38,10 +38,10 @@ export function ConnectionStatusBadge({
   const Icon = config.icon
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col items-end text-right gap-1 shrink-0">
       <div
         className={cn(
-          'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border w-fit',
+          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border shrink-0',
           config.bg,
           className
         )}
@@ -50,12 +50,12 @@ export function ConnectionStatusBadge({
         <span>{config.label}</span>
       </div>
       {status === 'connected' && lastSyncedAt && (
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
           Terakhir sync: {lastSyncedAt}
         </span>
       )}
       {status === 'error' && errorMessage && (
-        <span className="text-[11px] text-destructive font-medium">
+        <span className="text-[10px] text-destructive font-medium">
           {errorMessage}
         </span>
       )}

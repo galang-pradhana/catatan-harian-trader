@@ -100,26 +100,27 @@ export function ConnectionCard({
       <div className="bg-card border border-border rounded-2xl p-5 shadow-md flex flex-col justify-between gap-4 transition-all hover:border-primary/40">
         {/* Card Header */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-primary shrink-0">
               <Server className="h-5 w-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-foreground text-base tracking-tight">
-                  {connection.accountNumber ? `#${connection.accountNumber}` : 'Menunggu Akun'}
-                </h3>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-extrabold text-foreground text-base tracking-tight truncate">
+                {connection.accountNumber ? `#${connection.accountNumber}` : 'Menunggu Akun'}
+              </h3>
+              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                <p className="text-xs text-muted-foreground font-medium truncate">
+                  {connection.brokerName || 'Broker Belum Terdeteksi'}
+                </p>
                 {isCent && (
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
-                    Akun Cent (USC)
+                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
+                    Cent (USC)
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground font-medium">
-                {connection.brokerName || 'Broker Belum Terdeteksi'}
-              </p>
             </div>
           </div>
+
           <ConnectionStatusBadge
             status={connection.status}
             errorMessage={connection.lastError}
