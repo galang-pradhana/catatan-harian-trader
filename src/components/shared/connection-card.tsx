@@ -1,13 +1,13 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { RefreshCw, Trash2, ShieldCheck, Server, Coins, Check } from 'lucide-react'
 import { MT5Connection, AccountType } from '@/types/mt5'
 import { ConnectionStatusBadge } from '@/components/shared/connection-status-badge'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/shared/toast'
 import { Modal } from '@/components/shared/modal'
-import { convertAccountValue, formatCurrency } from '@/utils/currency'
+import { convertAccountValue } from '@/utils/currency'
 import { cn } from '@/lib/utils'
 
 export interface ConnectionCardProps {
@@ -30,6 +30,17 @@ export function ConnectionCard({
     connection.accountType || connection.account_type || 'standard'
   )
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`mt5_account_type_${connection.id}`)
+      if (saved === 'cent' || saved === 'standard') {
+        setAccountType(saved as AccountType)
+      } else if (connection.accountType || connection.account_type) {
+        setAccountType(connection.accountType || connection.account_type || 'standard')
+      }
+    }
+  }, [connection.id, connection.accountType, connection.account_type])
+
   const handleSyncClick = () => {
     setIsSyncing(true)
     setTimeout(() => {
@@ -43,6 +54,10 @@ export function ConnectionCard({
     if (newType === accountType) return
     setIsUpdatingType(true)
     setAccountType(newType)
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`mt5_account_type_${connection.id}`, newType)
+    }
 
     try {
       const res = await fetch(`/api/mt5/connections/${connection.id}`, {
@@ -58,16 +73,19 @@ export function ConnectionCard({
         )
         onAccountTypeChange?.(connection.id, newType)
       } else {
-        toast('Gagal mengubah tipe akun', 'error')
+        toast('Tipe akun disimpan lokal (localStorage)', 'info')
       }
     } catch {
-      toast('Terjadi kesalahan jaringan', 'error')
+      toast('Tipe akun disimpan lokal (localStorage)', 'info')
     } finally {
       setIsUpdatingType(false)
     }
   }
 
   const handleDeleteConfirm = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(`mt5_account_type_${connection.id}`)
+    }
     setIsDeleteModalOpen(false)
     onDelete(connection.id)
     toast('Koneksi MT5 telah dihapus', 'error')

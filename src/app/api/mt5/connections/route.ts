@@ -30,13 +30,35 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { data: connections, error } = await supabase
+    // Try primary query with account_type column
+    let rawConnections: any[] | null = null
+    let error: any = null
+
+    const primaryRes = await supabase
       .from('mt5_connections')
       .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at, current_balance, balance_updated_at, account_type')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
+    if (!primaryRes.error) {
+      rawConnections = primaryRes.data
+    } else {
+      console.warn('GET /api/mt5/connections primary select warning:', primaryRes.error.message)
+      const fallbackRes = await supabase
+        .from('mt5_connections')
+        .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at, current_balance, balance_updated_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (!fallbackRes.error) {
+        rawConnections = fallbackRes.data
+      } else {
+        error = fallbackRes.error
+      }
+    }
+
     if (error) {
+      console.error('GET /api/mt5/connections error:', error.message)
       return NextResponse.json(
         { error: 'DATABASE_ERROR', message: error.message },
         { status: 500 }
@@ -61,7 +83,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Format DB columns for both camelCase and snake_case compatibility
-    const formatted = (connections || []).map((c: any) => {
+    const formatted = (rawConnections || []).map((c: any) => {
       const dbBal = c.current_balance !== null && c.current_balance !== undefined ? Number(c.current_balance) : null
       const tradePnlSum = pnlMap.get(c.id) || 0
       
@@ -95,6 +117,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ connections: formatted })
   } catch (err: any) {
+    console.error('GET /api/mt5/connections unexpected error:', err)
     return NextResponse.json(
       { error: 'SERVER_ERROR', message: err?.message || 'Internal server error' },
       { status: 500 }
@@ -176,20 +199,38 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: newConn, error: insertError } = await supabase
+    const insertPayload: any = {
+      user_id: user.id,
+      api_token_hash: tokenHash,
+      status: 'pending',
+      account_type: accountType,
+    }
+
+    let { data: newConn, error: insertError } = await supabase
       .from('mt5_connections')
-      .insert({
-        user_id: user.id,
-        api_token_hash: tokenHash,
-        status: 'pending',
-        account_type: accountType,
-      })
+      .insert(insertPayload)
       .select('id, status, created_at, account_type')
       .single()
 
+    // Fallback if account_type column does not exist in DB yet
     if (insertError) {
+      console.warn('POST /api/mt5/connections insert error, retrying fallback:', insertError.message)
+      delete insertPayload.account_type
+      const retry = await supabase
+        .from('mt5_connections')
+        .insert(insertPayload)
+        .select('id, status, created_at')
+        .single()
+
+      if (!retry.error) {
+        newConn = { ...retry.data, account_type: accountType }
+        insertError = null
+      }
+    }
+
+    if (insertError || !newConn) {
       return NextResponse.json(
-        { error: 'DATABASE_ERROR', message: insertError.message },
+        { error: 'DATABASE_ERROR', message: insertError?.message || 'Gagal menyimpan koneksi MT5' },
         { status: 500 }
       )
     }
@@ -209,6 +250,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (err: any) {
+    console.error('POST /api/mt5/connections unexpected error:', err)
     return NextResponse.json(
       { error: 'SERVER_ERROR', message: err?.message || 'Internal server error' },
       { status: 500 }
