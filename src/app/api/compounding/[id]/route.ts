@@ -80,7 +80,7 @@ export async function GET(
     }
 
     // Fetch MT5 connection separately to avoid join ambiguity
-    let connData = null
+    let connData: any = null
     if (plan.mt5_connection_id) {
       const { data: c, error: cErr } = await supabase
         .from('mt5_connections')
