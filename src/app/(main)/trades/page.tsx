@@ -24,6 +24,7 @@ import { TradeListItem } from '@/components/shared/trade-list-item'
 import { TradeFilter, FilterState } from '@/components/shared/trade-filter'
 import { CompoundingTrackerPanel } from '@/components/shared/compounding-tracker-panel'
 import { TradeJournalDrawer } from '@/components/shared/trade-journal-drawer'
+import { MobileStickyHeader } from '@/components/shared/mobile-sticky-header'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Trade } from '@/types/trade'
@@ -429,42 +430,59 @@ function TradesPageContent() {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto px-2 sm:px-4">
-      {/* Header & View Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-        <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
-              Jurnal Trading
-            </h1>
+      {/* Header & Sticky Collapsible Bar */}
+      <MobileStickyHeader
+        title="Jurnal Trading"
+        description="Daftar riwayat posisi trade MT5 & pengisian catatan jurnal harian."
+        incompleteCount={incompleteCount}
+        onIncompleteClick={() => handleFilterChange({ ...filters, journalStatus: 'incomplete' })}
+        rightActions={
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Desktop CTA Button */}
+            <Button
+              size="sm"
+              onClick={handleOpenManualDrawer}
+              className="hidden md:inline-flex bg-emerald-500 hover:bg-emerald-600 text-black font-bold shadow-xs cursor-pointer"
+            >
+              <Plus className="h-4 w-4 mr-1" /> Tambah Jurnal Trade
+            </Button>
 
-            {/* Incomplete Journal Badge */}
-            {incompleteCount > 0 && (
-              <button
-                type="button"
-                onClick={() => handleFilterChange({ ...filters, journalStatus: 'incomplete' })}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 text-xs font-bold hover:bg-amber-500/30 transition-all cursor-pointer shadow-sm"
-                title="Klik untuk filter trade yang belum diisi"
-              >
-                <AlertCircle className="h-3.5 w-3.5" />
-                <span>{incompleteCount} Belum Diisi</span>
-              </button>
-            )}
+            {/* MT5 Sync Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push('/mt5')}
+              className="text-xs font-semibold px-2.5 sm:px-3 h-9"
+              title="Ke Halaman Import / MT5"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1 hidden sm:inline" />
+              <span>MT5</span>
+            </Button>
+
+            {/* Refresh Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isLoading}
+              className="p-2 h-9 w-9"
+              title="Refresh Data Trade"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Daftar riwayat posisi trade MT5 &amp; pengisian catatan jurnal harian.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* List View / Calendar View Switcher */}
-          <div className="bg-card border border-border p-1 rounded-xl flex items-center shadow-sm">
+        }
+      >
+        {/* Segmented Control Switcher for List / Calendar View */}
+        <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+          <div className="bg-muted/70 p-1 rounded-xl flex items-center w-full sm:w-auto border border-border/60 shadow-2xs">
             <button
               type="button"
               onClick={() => handleViewToggle('list')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer select-none',
                 activeView === 'list'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  ? 'bg-background text-foreground shadow-xs border border-border/40 font-extrabold'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -476,9 +494,9 @@ function TradesPageContent() {
               type="button"
               onClick={() => handleViewToggle('calendar')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer select-none',
                 activeView === 'calendar'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  ? 'bg-background text-foreground shadow-xs border border-border/40 font-extrabold'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -486,24 +504,8 @@ function TradesPageContent() {
               <span>Calendar View</span>
             </button>
           </div>
-
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Button
-              size="sm"
-              onClick={handleOpenManualDrawer}
-              className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold shadow-sm"
-            >
-              <Plus className="h-4 w-4 mr-1" /> Tambah Jurnal Trade
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => router.push('/mt5')}>
-              <Plus className="h-4 w-4 mr-1" /> MT5
-            </Button>
-          </div>
         </div>
-      </div>
+      </MobileStickyHeader>
 
       {/* Filter Component */}
       <TradeFilter
@@ -926,6 +928,17 @@ function TradesPageContent() {
           </div>
         </div>
       )}
+
+      {/* FLOATING ACTION BUTTON (FAB) FOR MOBILE (< md) */}
+      <button
+        type="button"
+        onClick={handleOpenManualDrawer}
+        className="fixed bottom-6 right-4 sm:right-6 z-40 md:hidden h-14 w-14 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-black shadow-xl flex items-center justify-center transition-all cursor-pointer border-2 border-emerald-400/50"
+        title="Tambah Jurnal Trade"
+        aria-label="Tambah Jurnal Trade"
+      >
+        <Plus className="h-7 w-7 text-black stroke-[2.5]" />
+      </button>
 
       {/* SLIDE-OVER TRADE JOURNAL DRAWER (Supports Single, Manual, and Batch Modes) */}
       <TradeJournalDrawer

@@ -1,7 +1,6 @@
 'use client'
 
 import React from 'react'
-import Link from 'next/link'
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -43,7 +42,6 @@ export function TradeListItem({
   const isBuy = trade.direction === 'buy'
   const isProfit = (trade.pnl || 0) > 0
   const isLoss = trade.status === 'closed' && (trade.pnl || 0) < 0
-  const isBreakeven = trade.status === 'closed' && trade.pnl === 0
   const isComplete = trade.journalStatus === 'complete'
   const isOpen = trade.status === 'open'
   const isManual = trade.source === 'manual'
@@ -64,11 +62,233 @@ export function TradeListItem({
 
   const moodObj = trade.mood ? moodEmojis[trade.mood] : null
 
-  const content = (
-    <div className="flex items-center justify-between gap-3">
-      {/* Left: Checkbox (in multi-select), Direction Icon, Symbol, & Badges */}
+  /* MOBILE LAYOUT (< 768px): 3 BARIS COMPACT */
+  const mobileContent = (
+    <div className="space-y-2 md:hidden">
+      {/* Baris 1: [Icon arah] Symbol — Badge arah posisi (biru/oranye) — Lot size — Jam eksekusi (rata kanan) */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Multi-Select Checkbox */}
+          {isMultiSelectMode && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center justify-center pr-0.5 shrink-0"
+            >
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => onToggleSelect?.(trade)}
+                className="h-4 w-4 rounded border-border text-primary cursor-pointer accent-primary focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          )}
+
+          {/* Direction Icon (28x28px compact) */}
+          <div
+            className={cn(
+              'h-7 w-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 transition-colors',
+              isBuy
+                ? 'bg-blue-500/15 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                : 'bg-amber-500/15 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+            )}
+          >
+            {isBuy ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+          </div>
+
+          {/* Symbol */}
+          <span className="font-extrabold text-foreground text-sm tracking-tight truncate">
+            {trade.symbol}
+          </span>
+
+          {/* Position Direction Badge (Biru for Buy, Oranye for Sell) */}
+          <span
+            className={cn(
+              'text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded shrink-0',
+              isBuy
+                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+            )}
+          >
+            {trade.direction}
+          </span>
+
+          {/* Lot Size */}
+          <span className="text-xs text-muted-foreground font-mono font-semibold shrink-0">
+            {trade.volume} Lot
+          </span>
+        </div>
+
+        {/* Jam Eksekusi (Rata Kanan) */}
+        <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+          {new Date(trade.openTime).toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </span>
+      </div>
+
+      {/* Baris 2: Badge WIN/LOSS/BE (kiri) — Nominal PNL besar & bold (kanan) */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
+          {!isOpen && trade.pnl !== undefined ? (
+            <span
+              className={cn(
+                'text-[11px] font-black uppercase px-2 py-0.5 rounded text-white tracking-wider shadow-2xs',
+                trade.pnl > 0
+                  ? 'bg-emerald-600'
+                  : trade.pnl < 0
+                  ? 'bg-red-600'
+                  : 'bg-slate-600 dark:bg-slate-700'
+              )}
+            >
+              {trade.pnl > 0 ? 'WIN' : trade.pnl < 0 ? 'LOSS' : 'BE'}
+            </span>
+          ) : (
+            <span className="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded bg-blue-600 text-white tracking-wider shadow-2xs">
+              RUNNING
+            </span>
+          )}
+        </div>
+
+        {/* Nominal PNL (Besar & Bold) */}
+        <div className="flex items-center gap-1.5">
+          {isOpen && (
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+            </span>
+          )}
+          <span
+            className={cn(
+              'font-mono font-extrabold text-base tracking-tight',
+              isOpen
+                ? 'text-primary'
+                : isProfit
+                ? 'text-emerald-500 dark:text-emerald-400'
+                : isLoss
+                ? 'text-red-500 dark:text-red-400'
+                : 'text-muted-foreground'
+            )}
+          >
+            {formattedPnl}
+          </span>
+        </div>
+      </div>
+
+      {/* Baris 3: Horizontal-scroll tag row dengan fade gradient */}
+      <div className="relative overflow-hidden w-full pt-0.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pr-6 scrollbar-none py-0.5 text-[10px]">
+          {/* Status Jurnal (Belum Diisi / Lengkap) */}
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-full border shrink-0',
+              isComplete
+                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+            )}
+          >
+            {isComplete ? (
+              <>
+                <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" /> Lengkap
+              </>
+            ) : (
+              <>
+                <AlertCircle className="h-3 w-3 shrink-0 text-amber-400" /> Belum Diisi
+              </>
+            )}
+          </span>
+
+          {/* Manual vs MT5 Badge */}
+          {isManual ? (
+            <span className="font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 shrink-0">
+              Manual Entry
+            </span>
+          ) : (
+            <span className="font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border shrink-0">
+              MT5 Executed
+            </span>
+          )}
+
+          {/* R:R Badge */}
+          {exitInfo.plannedRR !== '-' && (
+            <span className="font-mono font-bold px-1.5 py-0.5 rounded bg-muted text-foreground border border-border shrink-0">
+              R:R {exitInfo.plannedRR}
+            </span>
+          )}
+
+          {/* Exit Type Badge */}
+          <span className={cn('font-bold px-2 py-0.5 rounded-full border shrink-0', exitInfo.exitBadgeColor)}>
+            {exitInfo.exitTypeLabel}
+          </span>
+
+          {/* Discipline Badge */}
+          {trade.discipline === 'no' && (
+            <span className="inline-flex items-center gap-1 font-extrabold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">
+              <ShieldAlert className="h-3 w-3" /> Melanggar Rules
+            </span>
+          )}
+          {trade.discipline === 'yes' && (
+            <span className="inline-flex items-center gap-1 font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+              <ShieldCheck className="h-3 w-3" /> Ikut Rules
+            </span>
+          )}
+
+          {/* Mood Badge */}
+          {moodObj && (
+            <span className="font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 shrink-0">
+              {moodObj.emoji} {moodObj.label}
+            </span>
+          )}
+
+          {/* Grouped Badge */}
+          {(trade.groupId || trade.groupName) && (
+            <button
+              type="button"
+              onClick={(e) => {
+                if (onOpenGroup && trade.groupId) {
+                  e.stopPropagation()
+                  onOpenGroup(trade.groupId)
+                }
+              }}
+              className="inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 shrink-0 cursor-pointer"
+            >
+              <Link2 className="h-3 w-3 text-purple-400" />
+              <span>{trade.groupName || 'Grouped'}</span>
+            </button>
+          )}
+
+          {/* Strategy Badges */}
+          {trade.strategies && trade.strategies.length > 0 && (
+            trade.strategies.map((strat) => (
+              <span
+                key={strat.id}
+                className="font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 shrink-0"
+                style={{
+                  backgroundColor: `${strat.color}20`,
+                  borderColor: `${strat.color}60`,
+                  color: strat.color,
+                }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: strat.color }} />
+                <span>{strat.name}</span>
+              </span>
+            ))
+          )}
+        </div>
+
+        {/* Fade Gradient di Ujung Kanan Tag Scroll */}
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-card via-card/80 to-transparent z-10" />
+      </div>
+    </div>
+  )
+
+  /* DESKTOP LAYOUT (>= 768px): SINGLE LINE HORIZONTAL */
+  const desktopContent = (
+    <div className="hidden md:flex items-center justify-between gap-3">
+      {/* Left Section */}
       <div className="flex items-center gap-3">
-        {/* Multi-Select Checkbox */}
         {isMultiSelectMode && (
           <div
             onClick={(e) => e.stopPropagation()}
@@ -83,7 +303,6 @@ export function TradeListItem({
           </div>
         )}
 
-        {/* Direction Icon (Neutral Colors: Blue for Buy, Amber for Sell - NOT Red/Green) */}
         <div
           className={cn(
             'h-10 w-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-colors',
@@ -92,11 +311,7 @@ export function TradeListItem({
               : 'bg-amber-500/10 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-500/30'
           )}
         >
-          {isBuy ? (
-            <ArrowUpRight className="h-5 w-5" />
-          ) : (
-            <ArrowDownRight className="h-5 w-5" />
-          )}
+          {isBuy ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownRight className="h-5 w-5" />}
         </div>
 
         <div>
@@ -104,7 +319,7 @@ export function TradeListItem({
             <span className="font-bold text-foreground text-sm group-hover:text-primary transition-colors">
               {trade.symbol}
             </span>
-            {/* Position Direction Badge (Neutral colors) */}
+
             <span
               className={cn(
                 'text-[10px] font-bold uppercase px-1.5 py-0.5 rounded',
@@ -119,11 +334,10 @@ export function TradeListItem({
               {trade.volume} Lot
             </span>
 
-            {/* Solid WIN / LOSS / BE Badge */}
             {!isOpen && trade.pnl !== undefined && (
               <span
                 className={cn(
-                  'text-[10px] font-black uppercase px-1.5 py-0.5 rounded text-white tracking-wider shadow-xs shrink-0',
+                  'text-[10px] font-black uppercase px-1.5 py-0.5 rounded text-white tracking-wider shadow-2xs shrink-0',
                   trade.pnl > 0
                     ? 'bg-emerald-600'
                     : trade.pnl < 0
@@ -135,7 +349,6 @@ export function TradeListItem({
               </span>
             )}
 
-            {/* Strategy Badges */}
             {trade.strategies && trade.strategies.length > 0 && (
               trade.strategies.map((strat) => (
                 <span
@@ -153,7 +366,6 @@ export function TradeListItem({
               ))
             )}
 
-            {/* Manual Entry vs MT5 Badge */}
             {isManual ? (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
                 Manual Entry
@@ -164,7 +376,6 @@ export function TradeListItem({
               </span>
             )}
 
-            {/* Grouped Badge (if belongs to a batch group) */}
             {(trade.groupId || trade.groupName) && (
               <button
                 type="button"
@@ -182,19 +393,16 @@ export function TradeListItem({
               </button>
             )}
 
-            {/* R:R Badge */}
             {exitInfo.plannedRR !== '-' && (
               <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-muted text-foreground border border-border">
                 R:R {exitInfo.plannedRR}
               </span>
             )}
 
-            {/* Exit Type Badge */}
             <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full border', exitInfo.exitBadgeColor)}>
               {exitInfo.exitTypeLabel}
             </span>
 
-            {/* Discipline Badge */}
             {trade.discipline === 'no' && (
               <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800/40">
                 <ShieldAlert className="h-3 w-3" /> Melanggar Rules
@@ -206,7 +414,6 @@ export function TradeListItem({
               </span>
             )}
 
-            {/* Mood Badge */}
             {moodObj && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-900 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40">
                 {moodObj.emoji} {moodObj.label}
@@ -224,7 +431,7 @@ export function TradeListItem({
         </div>
       </div>
 
-      {/* Right: PnL & Completeness Status */}
+      {/* Right Section */}
       <div className="text-right flex flex-col items-end gap-1 shrink-0">
         <div className="flex items-center gap-1.5">
           {isOpen && (
@@ -233,7 +440,6 @@ export function TradeListItem({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
             </span>
           )}
-          {/* Win/Loss Colors Reserved for PnL */}
           <span
             className={cn(
               'font-mono font-bold text-sm sm:text-base',
@@ -272,12 +478,9 @@ export function TradeListItem({
     </div>
   )
 
-  // Left Border Accent & Background Tint (Win/Loss/BE Reserved Colors)
   const cardClasses = cn(
-    'block bg-card border border-l-4 rounded-2xl p-4 transition-all hover:shadow-md active:scale-[0.99] group relative overflow-hidden cursor-pointer select-none',
-    // Selection highlight
+    'block bg-card border border-l-4 rounded-xl p-3 sm:p-4 transition-all hover:shadow-md active:scale-[0.99] group relative overflow-hidden cursor-pointer select-none',
     isSelected && 'ring-2 ring-primary border-primary/50 bg-primary/10',
-    // Left Border Accent (3-4px) & Background Tint
     isOpen
       ? 'border-l-blue-400 bg-blue-500/[0.03]'
       : isProfit
@@ -285,7 +488,6 @@ export function TradeListItem({
       : isLoss
       ? 'border-l-red-500 bg-red-500/[0.04] dark:bg-red-950/20'
       : 'border-l-slate-500 bg-slate-500/[0.03]',
-    // Warning state if incomplete
     !isComplete && !isSelected && 'border-amber-400/80 dark:border-amber-500/50'
   )
 
@@ -299,7 +501,8 @@ export function TradeListItem({
 
   return (
     <div onClick={handleClick} className={cardClasses}>
-      {content}
+      {mobileContent}
+      {desktopContent}
     </div>
   )
 }
