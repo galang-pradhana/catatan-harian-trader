@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
+import { toUSD } from '@/utils/currency'
 import {
   calculateWinRate,
   calculateProfitFactor,
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
     // Query current month trades
     let query = supabase
       .from('trades')
-      .select('pnl, status, close_time, open_time, trade_journal(actual_rr)')
+      .select('pnl, status, close_time, open_time, mt5_connections(account_type), trade_journal(actual_rr)')
       .eq('user_id', user.id)
       .gte('open_time', startDate)
       .lte('open_time', endDate)
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
     // Query previous month trades
     let prevQuery = supabase
       .from('trades')
-      .select('pnl, status, close_time, open_time, trade_journal(actual_rr)')
+      .select('pnl, status, close_time, open_time, mt5_connections(account_type), trade_journal(actual_rr)')
       .eq('user_id', user.id)
       .gte('open_time', prevStart)
       .lte('open_time', prevEnd)
@@ -68,15 +69,19 @@ export async function GET(request: NextRequest) {
 
     const { data: prevTrades } = await prevQuery
 
-    // Map to TradeStat with actual_rr from journal
+    // Map to TradeStat with actual_rr from journal, convert PnL to USD based on account_type
     const mapTrades = (rows: typeof currentTrades): Array<TradeStat & { actual_rr?: number | null }> =>
-      (rows ?? []).map((t: any) => ({
-        pnl:        t.pnl,
-        status:     t.status,
-        close_time: t.close_time,
-        open_time:  t.open_time,
-        actual_rr:  t.trade_journal?.actual_rr ?? null,
-      }))
+      (rows ?? []).map((t: any) => {
+        const accType = t.mt5_connections?.account_type || 'standard'
+        const pnlUsd = t.pnl != null ? toUSD(Number(t.pnl), accType) : 0
+        return {
+          pnl:        pnlUsd,
+          status:     t.status,
+          close_time: t.close_time,
+          open_time:  t.open_time,
+          actual_rr:  t.trade_journal?.actual_rr ?? null,
+        }
+      })
 
     const curr = mapTrades(currentTrades)
     const prev = mapTrades(prevTrades ?? [])

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
 import { groupByWeek, type TradeStat } from '@/utils/statistics'
+import { toUSD } from '@/utils/currency'
 
 function parseMonth(param: string | null): { year: number; month: number } {
   const now = new Date()
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('trades')
-      .select('pnl, status, close_time, open_time')
+      .select('pnl, status, close_time, open_time, mt5_connections(account_type)')
       .eq('user_id', user.id)
       .gte('open_time', startDate)
       .lte('open_time', endDate)
@@ -40,7 +41,10 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
     if (error) return NextResponse.json({ error: 'DATABASE_ERROR', message: error.message }, { status: 500 })
 
-    const trades = (data ?? []) as TradeStat[]
+    const trades = (data ?? []).map((t: any) => ({
+      ...t,
+      pnl: toUSD(Number(t.pnl) || 0, t.mt5_connections?.account_type || 'standard'),
+    })) as TradeStat[]
     const weekly = groupByWeek(trades, year, month)
 
     return NextResponse.json({ month: `${year}-${String(month).padStart(2, '0')}`, weekly })

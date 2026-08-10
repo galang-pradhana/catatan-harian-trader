@@ -215,10 +215,12 @@ export default function CreateCompoundingPlanPage() {
                   {mt5Data.map((conn: any) => {
                     const label = conn.brokerName || conn.broker_name || conn.name || 'Akun MT5'
                     const accNo = conn.accountNumber || conn.account_number || ''
-                    const bal = Number(conn.currentBalance ?? conn.balance ?? conn.current_balance ?? 0)
+                    const isCent = conn.accountType === 'cent' || conn.account_type === 'cent'
+                    const rawBal = Number(conn.currentBalance ?? conn.balance ?? conn.current_balance ?? 0)
+                    const balUsd = isCent ? rawBal / 100 : rawBal
                     return (
                       <option key={conn.id} value={conn.id}>
-                        {label} {accNo ? `(#${accNo})` : ''} - Balance ${bal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {label} {accNo ? `(#${accNo})` : ''} — ${balUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD {isCent ? `(${rawBal.toLocaleString('en-US')} USC - Akun Cent)` : ''}
                       </option>
                     )
                   })}
@@ -299,16 +301,29 @@ export default function CreateCompoundingPlanPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-foreground mb-1.5">
-                Nilai $ per Pip per Lot Standar ($)
-              </label>
-              <input
-                type="number"
-                value={pipValue}
-                onChange={(e) => setPipValue(e.target.value)}
-                placeholder="10"
-                className="w-full px-4 py-2 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
-              />
+              {(() => {
+                const selectedConn = modalSource === 'mt5' && mt5Data ? (mt5Data.find((c: any) => c.id === selectedMt5Id) || mt5Data[0]) : null
+                const isCent = selectedConn ? (selectedConn.accountType === 'cent' || selectedConn.account_type === 'cent') : false
+                const unitLabel = isCent ? 'USC' : 'USD'
+
+                return (
+                  <>
+                    <label className="block text-xs font-semibold text-foreground mb-1.5">
+                      Nilai {unitLabel} per Pip per Lot ({unitLabel})
+                    </label>
+                    <input
+                      type="number"
+                      value={pipValue}
+                      onChange={(e) => setPipValue(e.target.value)}
+                      placeholder={isCent ? '1000' : '10'}
+                      className="w-full px-4 py-2 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
+                    />
+                    <span className="text-[10px] text-muted-foreground mt-1 block">
+                      {isCent ? '💡 Untuk akun Cent, standar XAUUSD biasanya 1000 USC per pip/lot.' : '💡 Untuk akun Standard, standar XAUUSD biasanya $10 USD per pip/lot.'}
+                    </span>
+                  </>
+                )
+              })()}
             </div>
           </div>
 

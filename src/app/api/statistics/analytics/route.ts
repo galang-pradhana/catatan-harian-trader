@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
 import { calculateMFEPercent } from '@/utils/advanced-statistics'
 import { computeTradeActualRR } from '@/utils/trade-metrics'
+import { toUSD } from '@/utils/currency'
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,10 +34,10 @@ export async function GET(request: NextRequest) {
       startDate = d.toISOString()
     }
 
-    // 1. Fetch trades with join on trade_journal & mistake_tags
+    // 1. Fetch trades with join on trade_journal & mt5_connections
     let query = supabase
       .from('trades')
-      .select('*, trade_journal(*)')
+      .select('*, trade_journal(*), mt5_connections(account_type)')
       .eq('user_id', user.id)
       .eq('status', 'closed')
       .order('open_time', { ascending: true })
@@ -58,6 +59,8 @@ export async function GET(request: NextRequest) {
 
     const trades = rawTrades || []
 
+    const getPnl = (t: any) => toUSD(Number(t.pnl || 0), t.mt5_connections?.account_type || 'standard')
+
     // 2. Primary Metrics Calculation
     let grossProfit = 0
     let grossLoss = 0
@@ -73,7 +76,7 @@ export async function GET(request: NextRequest) {
     let worstTradePnl = Infinity
 
     trades.forEach((t: any) => {
-      const pnl = Number(t.pnl || 0)
+      const pnl = getPnl(t)
       totalPnl += pnl
 
       if (pnl > bestTradePnl) bestTradePnl = pnl
@@ -109,7 +112,7 @@ export async function GET(request: NextRequest) {
     const equityCurve: Array<{ date: string; cumulativePnl: number; drawdownDollar: number; drawdownPct: number }> = []
 
     trades.forEach((t: any) => {
-      const pnl = Number(t.pnl || 0)
+      const pnl = getPnl(t)
       cumulativePnl += pnl
 
       if (cumulativePnl > peakEquity) {
@@ -153,7 +156,7 @@ export async function GET(request: NextRequest) {
     trades.forEach((t: any) => {
       const dt = new Date(t.open_time)
       const dayName = dayNames[dt.getUTCDay()]
-      const pnl = Number(t.pnl || 0)
+      const pnl = getPnl(t)
 
       if (daysMap[dayName]) {
         daysMap[dayName].trades++
@@ -201,7 +204,7 @@ export async function GET(request: NextRequest) {
 
     trades.forEach((t: any) => {
       const journal = t.trade_journal
-      const pnl = Number(t.pnl || 0)
+      const pnl = getPnl(t)
 
       if (journal?.mood && moodMap[journal.mood]) {
         moodMap[journal.mood].trades++
@@ -285,7 +288,7 @@ export async function GET(request: NextRequest) {
 
     trades.forEach((t: any) => {
       const sym = String(t.symbol || 'UNKNOWN').toUpperCase()
-      const pnl = Number(t.pnl || 0)
+      const pnl = getPnl(t)
 
       if (!pairMap[sym]) {
         pairMap[sym] = { symbol: sym, trades: 0, wins: 0, pnl: 0 }

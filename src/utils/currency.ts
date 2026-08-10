@@ -29,6 +29,15 @@ export function convertAccountValue(
 }
 
 /**
+ * Shorthand helper untuk mengonversi nilai native ke USD.
+ */
+export function toUSD(nativeAmount: number, accountType: AccountType = 'standard'): number {
+  const num = typeof nativeAmount === 'number' && !isNaN(nativeAmount) ? nativeAmount : 0
+  return accountType === 'cent' ? num / 100 : num
+}
+
+
+/**
  * Format string tampilan nominal uang berdasarkan tipe akun.
  */
 export function formatCurrency(
