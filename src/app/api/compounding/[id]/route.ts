@@ -82,12 +82,23 @@ export async function GET(
     // Fetch MT5 connection separately to avoid join ambiguity
     let connData = null
     if (plan.mt5_connection_id) {
-      const { data: c } = await supabase
+      const { data: c, error: cErr } = await supabase
         .from('mt5_connections')
         .select('broker_name, account_number, current_balance, account_type')
         .eq('id', plan.mt5_connection_id)
         .single()
-      connData = c
+      
+      if (!cErr && c) {
+        connData = c
+      } else {
+        // Fallback in case account_type column doesn't exist yet
+        const { data: cFallback } = await supabase
+          .from('mt5_connections')
+          .select('broker_name, account_number, current_balance')
+          .eq('id', plan.mt5_connection_id)
+          .single()
+        if (cFallback) connData = cFallback
+      }
     }
 
     // Read `current_balance` (synced from EA) — convert USC→USD for cent accounts

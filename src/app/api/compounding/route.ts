@@ -49,10 +49,20 @@ export async function GET(request: NextRequest) {
     })
 
     // Pre-fetch mt5_connections for map
-    const { data: connRows } = await supabase
+    let { data: connRows, error: connErr } = await supabase
       .from('mt5_connections')
       .select('id, broker_name, account_number, current_balance, account_type')
       .eq('user_id', user.id)
+    
+    if (connErr) {
+      // Fallback in case account_type column doesn't exist yet
+      const fallbackConn = await supabase
+        .from('mt5_connections')
+        .select('id, broker_name, account_number, current_balance')
+        .eq('user_id', user.id)
+      connRows = fallbackConn.data
+    }
+
     const connMap = new Map<string, any>()
     for (const c of connRows || []) {
       connMap.set(c.id, c)
