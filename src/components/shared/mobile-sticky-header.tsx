@@ -11,6 +11,7 @@ export interface MobileStickyHeaderProps {
   incompleteCount?: number
   onIncompleteClick?: () => void
   rightActions?: React.ReactNode
+  showHamburger?: boolean
   children?: React.ReactNode
   className?: string
 }
@@ -21,6 +22,7 @@ export function MobileStickyHeader({
   incompleteCount = 0,
   onIncompleteClick,
   rightActions,
+  showHamburger = false,
   children,
   className,
 }: MobileStickyHeaderProps) {
@@ -38,53 +40,54 @@ export function MobileStickyHeader({
 
   return (
     <>
-      {/* Mobile Navigation Slide-Over Drawer */}
-      <MobileNavDrawer
-        isOpen={isNavDrawerOpen}
-        onClose={() => setIsNavDrawerOpen(false)}
-      />
+      {showHamburger && (
+        <MobileNavDrawer
+          isOpen={isNavDrawerOpen}
+          onClose={() => setIsNavDrawerOpen(false)}
+        />
+      )}
 
-      {/* Responsive Header Container */}
+      {/* Responsive Page Header Container */}
       <div
         className={cn(
           'transition-all duration-200 border-b border-border/80',
           isScrolled
-            ? 'sticky top-0 z-30 bg-background/95 backdrop-blur-md py-2.5 px-3 -mx-2 sm:-mx-4 sm:px-4 shadow-sm'
-            : 'pt-1 pb-4',
+            ? 'sticky top-[53px] md:top-0 z-20 bg-background/95 backdrop-blur-md py-2 px-2 sm:px-4 shadow-2xs'
+            : 'pt-1 pb-3',
           className
         )}
       >
         <div className="flex items-center justify-between gap-3">
-          {/* Left Side: Hamburger Menu Button (Garis 3) + Title */}
+          {/* Left Side: Optional Hamburger + Title */}
           <div className="flex items-center gap-2.5 min-w-0">
-            {/* 1 Hamburger Menu Button (Garis 3) for Mobile */}
-            <button
-              type="button"
-              onClick={() => setIsNavDrawerOpen(true)}
-              className="md:hidden p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted active:scale-95 transition-all shrink-0 cursor-pointer shadow-2xs"
-              aria-label="Buka Menu Navigasi"
-              title="Buka Navigasi App"
-            >
-              <Menu className="h-5 w-5 text-foreground" />
-            </button>
+            {showHamburger && (
+              <button
+                type="button"
+                onClick={() => setIsNavDrawerOpen(true)}
+                className="md:hidden p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted active:scale-95 transition-all shrink-0 cursor-pointer shadow-2xs"
+                aria-label="Buka Menu Navigasi"
+              >
+                <Menu className="h-5 w-5 text-foreground" />
+              </button>
+            )}
 
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1
                   className={cn(
                     'font-extrabold text-foreground tracking-tight transition-all truncate',
-                    isScrolled ? 'text-base sm:text-lg' : 'text-xl sm:text-2xl'
+                    isScrolled ? 'text-sm sm:text-base' : 'text-lg sm:text-xl md:text-2xl'
                   )}
                 >
                   {title}
                 </h1>
 
-                {/* Incomplete Badge (if any) */}
+                {/* Incomplete Badge */}
                 {incompleteCount > 0 && (
                   <button
                     type="button"
                     onClick={onIncompleteClick}
-                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[11px] font-bold hover:bg-amber-500/30 transition-all cursor-pointer shrink-0 shadow-2xs"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] sm:text-[11px] font-bold hover:bg-amber-500/30 transition-all cursor-pointer shrink-0 shadow-2xs"
                     title="Klik untuk filter trade yang belum diisi"
                   >
                     <AlertCircle className="h-3 w-3" />
@@ -93,7 +96,6 @@ export function MobileStickyHeader({
                 )}
               </div>
 
-              {/* Description (Visible only when not scrolled) */}
               {!isScrolled && description && (
                 <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block truncate">
                   {description}
@@ -110,8 +112,7 @@ export function MobileStickyHeader({
           )}
         </div>
 
-        {/* Extra children rendered inside header (e.g. view switcher if passed) */}
-        {children && <div className="mt-3">{children}</div>}
+        {children && <div className="mt-2.5">{children}</div>}
       </div>
     </>
   )
