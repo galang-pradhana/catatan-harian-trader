@@ -16,10 +16,9 @@ export async function GET(
     }
 
     // 1. Primary Query
-    // NOTE: mt5_connections uses 'current_balance' column (not 'balance')
     let { data: plan, error: planError } = await supabase
       .from('compounding_plans')
-      .select('*, compounding_levels(*), mt5_connections(broker_name, account_number, current_balance, account_type)')
+      .select('*, compounding_levels(*)')
       .eq('id', id)
       .eq('user_id', user.id)
       .single()
@@ -80,12 +79,25 @@ export async function GET(
       }))
     }
 
+    // Fetch MT5 connection separately to avoid join ambiguity
+    let connData = null
+    if (plan.mt5_connection_id) {
+      const { data: c } = await supabase
+        .from('mt5_connections')
+        .select('broker_name, account_number, current_balance, account_type')
+        .eq('id', plan.mt5_connection_id)
+        .single()
+      connData = c
+    }
+
     // Read `current_balance` (synced from EA) — convert USC→USD for cent accounts
-    const rawBal = plan.mt5_connections?.current_balance != null
-      ? Number(plan.mt5_connections.current_balance)
-      : Number(plan.initial_modal || 1000)
-    const accType = plan.mt5_connections?.account_type || 'standard'
-    const currentBalance = accType === 'cent' ? rawBal / 100 : rawBal
+    // If it's a manual modal plan, always use initial_modal as balance.
+    let currentBalance = Number(plan.initial_modal || 1000)
+    if (!plan.is_manual_modal && connData && connData.current_balance != null) {
+      const rawBal = Number(connData.current_balance)
+      const accType = connData.account_type || 'standard'
+      currentBalance = accType === 'cent' ? rawBal / 100 : rawBal
+    }
 
     // Format levels
     const formattedLevels = levels
@@ -119,9 +131,9 @@ export async function GET(
         id: plan.id,
         name: plan.name || 'Plan Compounding',
         mt5_connection_id: plan.mt5_connection_id,
-        source: plan.mt5_connections
-          ? (plan.mt5_connections.broker_name
-              ? `${plan.mt5_connections.broker_name}${plan.mt5_connections.account_number ? ` (#${plan.mt5_connections.account_number})` : ''}`
+        source: connData
+          ? (connData.broker_name
+              ? `${connData.broker_name}${connData.account_number ? ` (#${connData.account_number})` : ''}`
               : 'Akun MT5')
           : 'Manual Balance',
         initialModal: Number(plan.initial_modal || 1000),

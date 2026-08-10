@@ -1,0 +1,94 @@
+
+> catatan-harian-trader@0.1.0 build
+> next build
+
+▲ Next.js 16.2.12 (Turbopack)
+- Environments: .env
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 23.6s
+  Running TypeScript ...
+  Finished TypeScript in 22.7s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/53) ...
+  Generating static pages using 3 workers (13/53) 
+  Generating static pages using 3 workers (26/53) 
+  Generating static pages using 3 workers (39/53) 
+✓ Generating static pages using 3 workers (53/53) in 1832ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /admin/audit-log
+├ ○ /admin/dashboard
+├ ○ /admin/login
+├ ○ /admin/users
+├ ƒ /admin/users/[id]
+├ ○ /analysis
+├ ƒ /api/admin/metrics
+├ ƒ /api/admin/notify
+├ ƒ /api/admin/settings
+├ ƒ /api/admin/users
+├ ƒ /api/admin/users/[id]
+├ ƒ /api/admin/users/bulk
+├ ƒ /api/analysis/deep
+├ ƒ /api/compounding
+├ ƒ /api/compounding/[id]
+├ ƒ /api/compounding/[id]/duplicate
+├ ƒ /api/compounding/[id]/levels
+├ ƒ /api/dashboard/advanced-metrics
+├ ƒ /api/dashboard/by-symbol
+├ ƒ /api/dashboard/calendar
+├ ƒ /api/dashboard/highlights
+├ ƒ /api/dashboard/summary
+├ ƒ /api/dashboard/weekly
+├ ƒ /api/import
+├ ƒ /api/import/[batchId]/confirm
+├ ƒ /api/mistake-tags
+├ ƒ /api/mistake-tags/[id]
+├ ƒ /api/mt5/connections
+├ ƒ /api/mt5/connections/[id]
+├ ƒ /api/mt5/handshake
+├ ƒ /api/mt5/sync
+├ ƒ /api/psychology/logs
+├ ƒ /api/psychology/triggers
+├ ƒ /api/statistics/analytics
+├ ƒ /api/strategies
+├ ƒ /api/strategies/[id]
+├ ƒ /api/trades
+├ ƒ /api/trades/[id]
+├ ƒ /api/trades/[id]/journal
+├ ƒ /api/trades/[id]/screenshots
+├ ƒ /api/trades/batch-journal
+├ ƒ /auth/callback
+├ ○ /calendar
+├ ○ /compounding
+├ ƒ /compounding/[id]
+├ ○ /compounding/create
+├ ○ /dashboard
+├ ○ /goals
+├ ○ /icon.png
+├ ○ /login
+├ ○ /mt5
+├ ○ /mt5/import
+├ ○ /notes
+├ ○ /onboarding
+├ ○ /onboarding/pending
+├ ○ /preview
+├ ○ /psychology
+├ ○ /register
+├ ○ /reminders
+├ ○ /settings
+├ ○ /statistics
+├ ○ /strategies
+├ ○ /trades
+└ ƒ /trades/[id]
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

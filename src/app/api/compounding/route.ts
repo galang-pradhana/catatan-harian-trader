@@ -15,10 +15,9 @@ export async function GET(request: NextRequest) {
     const includeArchived = searchParams.get('include_archived') === 'true'
 
     // Try primary query with full relations
-    // NOTE: mt5_connections uses 'current_balance' column (not 'balance')
     let { data: plans, error } = await supabase
       .from('compounding_plans')
-      .select('*, compounding_levels(*), mt5_connections(broker_name, account_number, current_balance, account_type)')
+      .select('*, compounding_levels(*)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -49,18 +48,31 @@ export async function GET(request: NextRequest) {
       return !p.is_archived
     })
 
+    // Pre-fetch mt5_connections for map
+    const { data: connRows } = await supabase
+      .from('mt5_connections')
+      .select('id, broker_name, account_number, current_balance, account_type')
+      .eq('user_id', user.id)
+    const connMap = new Map<string, any>()
+    for (const c of connRows || []) {
+      connMap.set(c.id, c)
+    }
+
     const formattedPlans = filteredPlans.map((plan: any) => {
       const rawLevels = plan.compounding_levels || []
       const levels = Array.isArray(rawLevels)
         ? rawLevels.sort((a: any, b: any) => a.level_number - b.level_number)
         : []
         
+      const connData = plan.mt5_connection_id ? connMap.get(plan.mt5_connection_id) : null
+
       // Read `current_balance` (synced from EA) — convert USC→USD for cent accounts
-      const rawBal = plan.mt5_connections?.current_balance != null
-        ? Number(plan.mt5_connections.current_balance)
-        : Number(plan.initial_modal || 1000)
-      const accType = plan.mt5_connections?.account_type || 'standard'
-      const currentBalance = accType === 'cent' ? rawBal / 100 : rawBal
+      let currentBalance = Number(plan.initial_modal || 1000)
+      if (!plan.is_manual_modal && connData && connData.current_balance != null) {
+        const rawBal = Number(connData.current_balance)
+        const accType = connData.account_type || 'standard'
+        currentBalance = accType === 'cent' ? rawBal / 100 : rawBal
+      }
 
       let currentLevel = 1
       let targetAssetForCurrent = levels[0]?.asset_plan || (plan.initial_modal || 1000) * 1.025
@@ -80,9 +92,9 @@ export async function GET(request: NextRequest) {
         id: plan.id,
         name: plan.name || 'Plan Compounding',
         mt5_connection_id: plan.mt5_connection_id,
-        source: plan.mt5_connections
-          ? (plan.mt5_connections.broker_name
-              ? `${plan.mt5_connections.broker_name}${plan.mt5_connections.account_number ? ` (#${plan.mt5_connections.account_number})` : ''}`
+        source: connData
+          ? (connData.broker_name
+              ? `${connData.broker_name}${connData.account_number ? ` (#${connData.account_number})` : ''}`
               : 'Akun MT5')
           : 'Manual Balance',
         initial_modal: Number(plan.initial_modal || 1000),
