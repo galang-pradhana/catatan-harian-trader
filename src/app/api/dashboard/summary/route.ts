@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
-import { toUSD } from '@/utils/currency'
+import { toUSD, type AccountType } from '@/utils/currency'
 import {
   calculateWinRate,
   calculateProfitFactor,
@@ -32,6 +32,16 @@ export async function GET(request: NextRequest) {
     const { year, month } = parseMonth(searchParams.get('month'))
     const connectionId   = searchParams.get('connectionId')
 
+    // Pre-fetch account type map (separate query, no join ambiguity)
+    const { data: connRows } = await supabase
+      .from('mt5_connections')
+      .select('id, account_type')
+      .eq('user_id', user.id)
+    const accountTypeMap = new Map<string, AccountType>()
+    for (const c of connRows ?? []) {
+      accountTypeMap.set(c.id, (c.account_type as AccountType) || 'standard')
+    }
+
     // Date range for current month
     const startDate = new Date(Date.UTC(year, month - 1, 1)).toISOString()
     const endDate   = new Date(Date.UTC(year, month, 0, 23, 59, 59)).toISOString()
@@ -42,10 +52,10 @@ export async function GET(request: NextRequest) {
     const prevStart = new Date(Date.UTC(prevYear, prevMonth - 1, 1)).toISOString()
     const prevEnd   = new Date(Date.UTC(prevYear, prevMonth, 0, 23, 59, 59)).toISOString()
 
-    // Query current month trades
+    // Query current month trades — include mt5_connection_id for lookup
     let query = supabase
       .from('trades')
-      .select('pnl, status, close_time, open_time, mt5_connections(account_type), trade_journal(actual_rr)')
+      .select('pnl, status, close_time, open_time, mt5_connection_id, trade_journal(actual_rr)')
       .eq('user_id', user.id)
       .gte('open_time', startDate)
       .lte('open_time', endDate)
@@ -59,7 +69,7 @@ export async function GET(request: NextRequest) {
     // Query previous month trades
     let prevQuery = supabase
       .from('trades')
-      .select('pnl, status, close_time, open_time, mt5_connections(account_type), trade_journal(actual_rr)')
+      .select('pnl, status, close_time, open_time, mt5_connection_id, trade_journal(actual_rr)')
       .eq('user_id', user.id)
       .gte('open_time', prevStart)
       .lte('open_time', prevEnd)
@@ -69,10 +79,10 @@ export async function GET(request: NextRequest) {
 
     const { data: prevTrades } = await prevQuery
 
-    // Map to TradeStat with actual_rr from journal, convert PnL to USD based on account_type
+    // Map to TradeStat — convert PnL to USD using the pre-fetched account type map
     const mapTrades = (rows: typeof currentTrades): Array<TradeStat & { actual_rr?: number | null }> =>
       (rows ?? []).map((t: any) => {
-        const accType = t.mt5_connections?.account_type || 'standard'
+        const accType = accountTypeMap.get(t.mt5_connection_id) || 'standard'
         const pnlUsd = t.pnl != null ? toUSD(Number(t.pnl), accType) : 0
         return {
           pnl:        pnlUsd,

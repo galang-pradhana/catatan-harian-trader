@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
 import { calculateMFEPercent } from '@/utils/advanced-statistics'
 import { computeTradeActualRR } from '@/utils/trade-metrics'
-import { toUSD } from '@/utils/currency'
+import { toUSD, type AccountType } from '@/utils/currency'
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,10 +34,20 @@ export async function GET(request: NextRequest) {
       startDate = d.toISOString()
     }
 
-    // 1. Fetch trades with join on trade_journal & mt5_connections
+    // 1. Pre-fetch account type map (separate query, no join ambiguity)
+    const { data: connRows } = await supabase
+      .from('mt5_connections')
+      .select('id, account_type')
+      .eq('user_id', user.id)
+    const accountTypeMap = new Map<string, AccountType>()
+    for (const c of connRows ?? []) {
+      accountTypeMap.set(c.id, (c.account_type as AccountType) || 'standard')
+    }
+
+    // 2. Fetch trades with join on trade_journal only (no mt5_connections join to avoid PostgREST ambiguity)
     let query = supabase
       .from('trades')
-      .select('*, trade_journal(*), mt5_connections(account_type)')
+      .select('*, trade_journal(*)')
       .eq('user_id', user.id)
       .eq('status', 'closed')
       .order('open_time', { ascending: true })
@@ -59,7 +69,8 @@ export async function GET(request: NextRequest) {
 
     const trades = rawTrades || []
 
-    const getPnl = (t: any) => toUSD(Number(t.pnl || 0), t.mt5_connections?.account_type || 'standard')
+    // Helper: convert trade PnL to USD using pre-fetched account type map
+    const getPnl = (t: any) => toUSD(Number(t.pnl || 0), accountTypeMap.get(t.mt5_connection_id) || 'standard')
 
     // 2. Primary Metrics Calculation
     let grossProfit = 0

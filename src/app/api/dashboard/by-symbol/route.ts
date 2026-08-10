@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
 import { groupBySymbol, type TradeStat } from '@/utils/statistics'
-import { toUSD } from '@/utils/currency'
+import { toUSD, type AccountType } from '@/utils/currency'
 
 function parseMonth(param: string | null): { year: number; month: number } {
   const now = new Date()
@@ -24,12 +24,22 @@ export async function GET(request: NextRequest) {
     const { year, month } = parseMonth(searchParams.get('month'))
     const connectionId    = searchParams.get('connectionId')
 
+    // Pre-fetch account type map (separate query, no join ambiguity)
+    const { data: connRows } = await supabase
+      .from('mt5_connections')
+      .select('id, account_type')
+      .eq('user_id', user.id)
+    const accountTypeMap = new Map<string, AccountType>()
+    for (const c of connRows ?? []) {
+      accountTypeMap.set(c.id, (c.account_type as AccountType) || 'standard')
+    }
+
     const startDate = new Date(Date.UTC(year, month - 1, 1)).toISOString()
     const endDate   = new Date(Date.UTC(year, month, 0, 23, 59, 59)).toISOString()
 
     let query = supabase
       .from('trades')
-      .select('pnl, status, close_time, open_time, symbol, mt5_connections(account_type)')
+      .select('pnl, status, close_time, open_time, symbol, mt5_connection_id')
       .eq('user_id', user.id)
       .gte('open_time', startDate)
       .lte('open_time', endDate)
@@ -42,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     const trades = (data ?? []).map((t: any) => ({
       ...t,
-      pnl: toUSD(Number(t.pnl) || 0, t.mt5_connections?.account_type || 'standard'),
+      pnl: toUSD(Number(t.pnl) || 0, accountTypeMap.get(t.mt5_connection_id) || 'standard'),
     })) as Array<TradeStat & { symbol: string }>
     const bySymbol = groupBySymbol(trades)
 

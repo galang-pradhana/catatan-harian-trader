@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
+import { toUSD, type AccountType } from '@/utils/currency'
 
 // GET /api/trades — List trades for authenticated user
 export async function GET(request: NextRequest) {
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
       .from('trades')
       .select(
         `
-        id, mt5_ticket_id, symbol, direction, volume,
+        id, mt5_connection_id, mt5_ticket_id, symbol, direction, volume,
         open_price, close_price, open_time, close_time,
         sl, tp, pnl, commission, swap, status, session,
         journal_status, created_at,
@@ -84,8 +85,19 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Pre-fetch account type map for PnL conversion
+    const { data: connRows } = await supabase
+      .from('mt5_connections')
+      .select('id, account_type')
+      .eq('user_id', user.id)
+    const accountTypeMap = new Map<string, AccountType>()
+    for (const c of connRows ?? []) {
+      accountTypeMap.set(c.id, (c.account_type as AccountType) || 'standard')
+    }
+
     const formattedTrades = (data ?? []).map((t: any) => ({
       ...t,
+      pnl: t.pnl != null ? toUSD(Number(t.pnl), accountTypeMap.get(t.mt5_connection_id) || 'standard') : null,
       strategies: (t.trade_strategies as any[])?.map((ts: any) => ts.strategies).filter(Boolean) ?? [],
     }))
 

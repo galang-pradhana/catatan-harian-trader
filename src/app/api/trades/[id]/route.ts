@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/services/supabase/server'
+import { toUSD, type AccountType } from '@/utils/currency'
 
 // GET /api/trades/[id] — Trade detail with journal, strategies, mistakes, screenshots
 export async function GET(
@@ -22,7 +23,7 @@ export async function GET(
       .from('trades')
       .select(
         `
-        id, mt5_ticket_id, symbol, direction, volume,
+        id, mt5_connection_id, mt5_ticket_id, symbol, direction, volume,
         open_price, close_price, open_time, close_time,
         sl, tp, pnl, commission, swap, status, session,
         journal_status, created_at, updated_at,
@@ -53,9 +54,19 @@ export async function GET(
       )
     }
 
-    // Flatten nested pivot relations
+    // Fetch account type for PnL conversion
+    const { data: connData } = await supabase
+      .from('mt5_connections')
+      .select('account_type')
+      .eq('id', trade.mt5_connection_id)
+      .single()
+    
+    const accountType = (connData?.account_type as AccountType) || 'standard'
+
+    // Flatten nested pivot relations and convert PnL
     const result = {
       ...trade,
+      pnl: trade.pnl != null ? toUSD(Number(trade.pnl), accountType) : null,
       strategies: (trade.trade_strategies as any[])?.map((ts: any) => ts.strategies) ?? [],
       mistakes:   (trade.trade_mistakes as any[])?.map((tm: any) => tm.mistake_tags) ?? [],
       screenshots: trade.trade_screenshots ?? [],
