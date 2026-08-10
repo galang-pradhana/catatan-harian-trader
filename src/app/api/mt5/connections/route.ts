@@ -11,7 +11,6 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL !== 'your_supabase_url_here'
 
     if (!isSupabaseConfigured) {
-      // Demo fallback response
       const { DUMMY_MT5_CONNECTIONS } = await import('@/constants/dummy-mt5')
       return NextResponse.json({ connections: DUMMY_MT5_CONNECTIONS })
     }
@@ -33,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     const { data: connections, error } = await supabase
       .from('mt5_connections')
-      .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at, current_balance, balance_updated_at')
+      .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at, current_balance, balance_updated_at, account_type')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -56,7 +55,6 @@ export async function GET(request: NextRequest) {
       closedTrades.forEach((t: any) => {
         if (t.mt5_connection_id) {
           const current = pnlMap.get(t.mt5_connection_id) || 0
-          pnlMap.get(t.mt5_connection_id)
           pnlMap.set(t.mt5_connection_id, current + Number(t.pnl || 0))
         }
       })
@@ -67,10 +65,11 @@ export async function GET(request: NextRequest) {
       const dbBal = c.current_balance !== null && c.current_balance !== undefined ? Number(c.current_balance) : null
       const tradePnlSum = pnlMap.get(c.id) || 0
       
-      // Effective balance: use dbBal if present and > 0, otherwise trade PnL sum
       const effectiveBalance = dbBal !== null && dbBal > 0 ? dbBal : (tradePnlSum !== 0 ? tradePnlSum : (dbBal || 0))
       const accNumStr = c.account_number ? String(c.account_number) : ''
       const brokerStr = c.broker_name || 'MT5 Account'
+      const accType = c.account_type || 'standard'
+      const balanceUsd = accType === 'cent' ? effectiveBalance / 100 : effectiveBalance
 
       return {
         id: c.id,
@@ -83,9 +82,13 @@ export async function GET(request: NextRequest) {
         lastError: c.last_error,
         lastSyncedAt: c.last_synced_at,
         createdAt: c.created_at,
+        accountType: accType,
+        account_type: accType,
         currentBalance: effectiveBalance,
         current_balance: effectiveBalance,
         balance: effectiveBalance,
+        balanceUsd,
+        balance_usd: balanceUsd,
         balanceUpdatedAt: c.balance_updated_at,
       }
     })
@@ -102,6 +105,16 @@ export async function GET(request: NextRequest) {
 // POST /api/mt5/connections — Generate new token & create pending MT5 connection
 export async function POST(request: NextRequest) {
   try {
+    let accountType = 'standard'
+    try {
+      const body = await request.json()
+      if (body?.accountType || body?.account_type) {
+        accountType = body.accountType || body.account_type
+      }
+    } catch {
+      // Body optional
+    }
+
     const isSupabaseConfigured =
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
       process.env.NEXT_PUBLIC_SUPABASE_URL !== 'your_supabase_url_here'
@@ -115,6 +128,8 @@ export async function POST(request: NextRequest) {
           connection: {
             id: `conn-${Date.now()}`,
             status: 'pending',
+            accountType,
+            account_type: accountType,
             createdAt: new Date().toISOString(),
           },
           token: plainToken,
@@ -167,8 +182,9 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         api_token_hash: tokenHash,
         status: 'pending',
+        account_type: accountType,
       })
-      .select('id, status, created_at')
+      .select('id, status, created_at, account_type')
       .single()
 
     if (insertError) {
@@ -183,6 +199,8 @@ export async function POST(request: NextRequest) {
         connection: {
           id: newConn.id,
           status: newConn.status,
+          accountType: newConn.account_type || accountType,
+          account_type: newConn.account_type || accountType,
           createdAt: newConn.created_at,
         },
         token: plainToken,

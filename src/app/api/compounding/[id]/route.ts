@@ -18,7 +18,7 @@ export async function GET(
     // 1. Primary Query
     let { data: plan, error: planError } = await supabase
       .from('compounding_plans')
-      .select('*, compounding_levels(*), mt5_connections(name, balance)')
+      .select('*, compounding_levels(*), mt5_connections(name, balance, account_type)')
       .eq('id', id)
       .eq('user_id', user.id)
       .single()
@@ -79,9 +79,9 @@ export async function GET(
       }))
     }
 
-    const currentBalance = plan.mt5_connections?.balance
-      ? Number(plan.mt5_connections.balance)
-      : Number(plan.initial_modal || 1000)
+    const rawBal = plan.mt5_connections?.balance ? Number(plan.mt5_connections.balance) : Number(plan.initial_modal || 1000)
+    const accType = plan.mt5_connections?.account_type || 'standard'
+    const currentBalance = accType === 'cent' ? rawBal / 100 : rawBal
 
     // Format levels
     const formattedLevels = levels

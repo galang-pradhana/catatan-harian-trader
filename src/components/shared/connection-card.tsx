@@ -1,26 +1,34 @@
 'use client'
 
 import React, { useState } from 'react'
-import { RefreshCw, Trash2, ShieldCheck, Server } from 'lucide-react'
-import { MT5Connection } from '@/types/mt5'
+import { RefreshCw, Trash2, ShieldCheck, Server, Coins, Check } from 'lucide-react'
+import { MT5Connection, AccountType } from '@/types/mt5'
 import { ConnectionStatusBadge } from '@/components/shared/connection-status-badge'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/shared/toast'
 import { Modal } from '@/components/shared/modal'
+import { convertAccountValue, formatCurrency } from '@/utils/currency'
+import { cn } from '@/lib/utils'
 
 export interface ConnectionCardProps {
   connection: MT5Connection
   onDelete: (id: string) => void
   onSync: (id: string) => void
+  onAccountTypeChange?: (id: string, newType: AccountType) => void
 }
 
 export function ConnectionCard({
   connection,
   onDelete,
   onSync,
+  onAccountTypeChange,
 }: ConnectionCardProps) {
   const [isSyncing, setIsSyncing] = useState(false)
+  const [isUpdatingType, setIsUpdatingType] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [accountType, setAccountType] = useState<AccountType>(
+    connection.accountType || connection.account_type || 'standard'
+  )
 
   const handleSyncClick = () => {
     setIsSyncing(true)
@@ -31,11 +39,43 @@ export function ConnectionCard({
     }, 1000)
   }
 
+  const handleAccountTypeSelect = async (newType: AccountType) => {
+    if (newType === accountType) return
+    setIsUpdatingType(true)
+    setAccountType(newType)
+
+    try {
+      const res = await fetch(`/api/mt5/connections/${connection.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountType: newType }),
+      })
+
+      if (res.ok) {
+        toast(
+          `Tipe akun diubah ke ${newType === 'cent' ? 'Akun Cent (USC)' : 'Akun Standar (USD)'}`,
+          'success'
+        )
+        onAccountTypeChange?.(connection.id, newType)
+      } else {
+        toast('Gagal mengubah tipe akun', 'error')
+      }
+    } catch {
+      toast('Terjadi kesalahan jaringan', 'error')
+    } finally {
+      setIsUpdatingType(false)
+    }
+  }
+
   const handleDeleteConfirm = () => {
     setIsDeleteModalOpen(false)
     onDelete(connection.id)
     toast('Koneksi MT5 telah dihapus', 'error')
   }
+
+  const rawBalance = connection.currentBalance || 0
+  const isCent = accountType === 'cent'
+  const converted = convertAccountValue(rawBalance, accountType)
 
   return (
     <>
@@ -47,9 +87,16 @@ export function ConnectionCard({
               <Server className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-bold text-foreground text-base tracking-tight">
-                {connection.accountNumber ? `#${connection.accountNumber}` : 'Menunggu Akun'}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-foreground text-base tracking-tight">
+                  {connection.accountNumber ? `#${connection.accountNumber}` : 'Menunggu Akun'}
+                </h3>
+                {isCent && (
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
+                    Akun Cent (USC)
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground font-medium">
                 {connection.brokerName || 'Broker Belum Terdeteksi'}
               </p>
@@ -60,6 +107,73 @@ export function ConnectionCard({
             errorMessage={connection.lastError}
             lastSyncedAt={connection.lastSyncedAt}
           />
+        </div>
+
+        {/* Saldo Realtime & Conversion Badge */}
+        {rawBalance > 0 && (
+          <div className="bg-muted/40 border border-border/60 rounded-xl p-3 text-xs space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground font-semibold text-[11px] uppercase tracking-wider">
+                Saldo Realtime MT5:
+              </span>
+              <span className="font-mono font-extrabold text-sm text-emerald-400">
+                {isCent ? `${rawBalance.toLocaleString('en-US')} USC` : `$${rawBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+              </span>
+            </div>
+
+            {isCent && (
+              <div className="flex justify-between items-center pt-1 border-t border-border/40 text-[11px]">
+                <span className="text-muted-foreground">Konversi Riil USD ($):</span>
+                <span className="font-mono font-bold text-emerald-400">
+                  ${converted.usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Pemilih Tipe Akun (Standar USD vs Cent USC) */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <Coins className="h-3.5 w-3.5 text-amber-500" /> Tipe Akun Trading:
+          </label>
+
+          <div className="grid grid-cols-2 gap-2 bg-muted/30 p-1 rounded-xl border border-border/60">
+            <button
+              type="button"
+              disabled={isUpdatingType}
+              onClick={() => handleAccountTypeSelect('standard')}
+              className={cn(
+                'py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1',
+                accountType === 'standard'
+                  ? 'bg-background text-foreground shadow-xs border border-border/40 font-extrabold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {accountType === 'standard' && <Check className="h-3 w-3 text-primary" />}
+              <span>Standar (USD)</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isUpdatingType}
+              onClick={() => handleAccountTypeSelect('cent')}
+              className={cn(
+                'py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1',
+                accountType === 'cent'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 font-extrabold shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {accountType === 'cent' && <Check className="h-3 w-3 text-amber-400" />}
+              <span>Cent (USC)</span>
+            </button>
+          </div>
+          {isCent && (
+            <p className="text-[10px] text-amber-400/90 font-medium px-1">
+              💡 Pada akun Cent, 100 USC = $1.00 USD (otomatis dikonversi /100 untuk target compounding).
+            </p>
+          )}
         </div>
 
         {/* Info detail */}

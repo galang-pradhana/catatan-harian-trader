@@ -1,11 +1,13 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Copy, Check, Download, Info, Terminal, Key } from 'lucide-react'
+import { Copy, Check, Download, Info, Terminal, Key, Coins } from 'lucide-react'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/shared/toast'
 import { EA_DOWNLOAD_FILENAME } from '@/constants/mt5'
+import { AccountType } from '@/types/mt5'
+import { cn } from '@/lib/utils'
 
 export interface NewConnectionModalProps {
   isOpen: boolean
@@ -21,6 +23,7 @@ export function NewConnectionModal({
   const [token, setToken] = useState('')
   const [copied, setCopied] = useState(false)
   const [isLoadingToken, setIsLoadingToken] = useState(false)
+  const [accountType, setAccountType] = useState<AccountType>('standard')
 
   useEffect(() => {
     if (isOpen) {
@@ -29,6 +32,8 @@ export function NewConnectionModal({
         try {
           const res = await fetch('/api/mt5/connections', {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountType }),
           })
           const data = await res.json()
           if (res.ok && data.token) {
@@ -44,7 +49,7 @@ export function NewConnectionModal({
       }
       createConnectionToken()
     }
-  }, [isOpen])
+  }, [isOpen, accountType])
 
   const handleCopyToken = () => {
     if (!token) return
@@ -82,10 +87,48 @@ export function NewConnectionModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Hubungkan Akun MT5 Baru"
-      description="Ikuti 4 langkah berikut untuk menempelkan Expert Advisor (EA) di terminal MetaTrader 5 Anda."
+      description="Pilih tipe akun dan ikuti langkah berikut untuk menempelkan Expert Advisor (EA) di terminal MetaTrader 5 Anda."
       className="max-w-xl"
     >
-      <div className="space-y-5 my-2 max-h-[70vh] overflow-y-auto pr-1">
+      <div className="space-y-4 my-2 max-h-[70vh] overflow-y-auto pr-1">
+        {/* Account Type Selector */}
+        <div className="bg-card border border-border p-3.5 rounded-xl space-y-2">
+          <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <Coins className="h-4 w-4 text-amber-500" /> Tipe Akun MT5 Anda:
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setAccountType('standard')}
+              className={cn(
+                'py-2 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer text-center',
+                accountType === 'standard'
+                  ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                  : 'bg-muted/30 border-border text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Akun Standar (USD)
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccountType('cent')}
+              className={cn(
+                'py-2 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer text-center',
+                accountType === 'cent'
+                  ? 'bg-amber-500 text-black border-amber-500 font-extrabold shadow-xs'
+                  : 'bg-muted/30 border-border text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Akun Cent (USC)
+            </button>
+          </div>
+          {accountType === 'cent' && (
+            <p className="text-[11px] text-amber-400 font-medium pt-1">
+              💡 Akun Cent melaporkan saldo 100x USD. Aplikasi akan mengonversi otomatis (100 USC = $1.00 USD) untuk target compounding.
+            </p>
+          )}
+        </div>
+
         {/* Step 1: Token Display */}
         <div className="bg-secondary/40 border border-border p-4 rounded-xl space-y-2">
           <div className="flex items-center justify-between text-xs font-semibold text-foreground">

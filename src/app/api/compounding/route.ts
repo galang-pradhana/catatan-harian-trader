@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     // Try primary query with full relations
     let { data: plans, error } = await supabase
       .from('compounding_plans')
-      .select('*, compounding_levels(*), mt5_connections(name, balance)')
+      .select('*, compounding_levels(*), mt5_connections(name, balance, account_type)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -54,9 +54,9 @@ export async function GET(request: NextRequest) {
         ? rawLevels.sort((a: any, b: any) => a.level_number - b.level_number)
         : []
         
-      const currentBalance = plan.mt5_connections?.balance
-        ? Number(plan.mt5_connections.balance)
-        : Number(plan.initial_modal || 1000)
+      const rawBal = plan.mt5_connections?.balance ? Number(plan.mt5_connections.balance) : Number(plan.initial_modal || 1000)
+      const accType = plan.mt5_connections?.account_type || 'standard'
+      const currentBalance = accType === 'cent' ? rawBal / 100 : rawBal
 
       let currentLevel = 1
       let targetAssetForCurrent = levels[0]?.asset_plan || (plan.initial_modal || 1000) * 1.025

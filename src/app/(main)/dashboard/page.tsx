@@ -297,19 +297,37 @@ export default function DashboardPage() {
 
             {mt5Connections.length > 0 ? (
               <div className="space-y-2.5">
-                {mt5Connections.map((conn: any) => (
-                  <div key={conn.id} className="p-3 rounded-2xl border border-border bg-muted/20 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block truncate">{conn.brokerName} (#{conn.accountNumber})</span>
-                      <span className="text-base font-extrabold font-mono text-emerald-400">
-                        {conn.currentBalance != null ? `$${Number(conn.currentBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : 'Belum Sync'}
+                {mt5Connections.map((conn: any) => {
+                  const isCent = conn.accountType === 'cent' || conn.account_type === 'cent'
+                  const rawBal = conn.currentBalance != null ? Number(conn.currentBalance) : 0
+                  const balUsd = conn.balanceUsd != null ? Number(conn.balanceUsd) : (isCent ? rawBal / 100 : rawBal)
+
+                  return (
+                    <div key={conn.id} className="p-3 rounded-2xl border border-border bg-muted/20 flex items-center justify-between text-xs">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-muted-foreground block truncate">{conn.brokerName} (#{conn.accountNumber})</span>
+                          {isCent && (
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                              Akun Cent
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-base font-extrabold font-mono text-emerald-400 block">
+                          {conn.currentBalance != null ? `$${balUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD` : 'Belum Sync'}
+                        </span>
+                        {isCent && rawBal > 0 && (
+                          <span className="text-[10px] text-muted-foreground font-mono font-medium block">
+                            (Raw MT5: {rawBal.toLocaleString('en-US')} USC)
+                          </span>
+                        )}
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+                        {conn.status === 'connected' ? 'Connected' : 'Offline'}
                       </span>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                      {conn.status === 'connected' ? 'Connected' : 'Offline'}
-                    </span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div className="p-4 text-center text-xs text-muted-foreground bg-muted/10 border border-dashed border-border/60 rounded-xl">
