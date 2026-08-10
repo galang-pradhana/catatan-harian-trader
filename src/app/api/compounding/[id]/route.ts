@@ -16,9 +16,10 @@ export async function GET(
     }
 
     // 1. Primary Query
+    // NOTE: mt5_connections uses 'current_balance' column (not 'balance')
     let { data: plan, error: planError } = await supabase
       .from('compounding_plans')
-      .select('*, compounding_levels(*), mt5_connections(name, balance, account_type)')
+      .select('*, compounding_levels(*), mt5_connections(broker_name, account_number, current_balance, account_type)')
       .eq('id', id)
       .eq('user_id', user.id)
       .single()
@@ -79,7 +80,10 @@ export async function GET(
       }))
     }
 
-    const rawBal = plan.mt5_connections?.balance ? Number(plan.mt5_connections.balance) : Number(plan.initial_modal || 1000)
+    // Read `current_balance` (synced from EA) — convert USC→USD for cent accounts
+    const rawBal = plan.mt5_connections?.current_balance != null
+      ? Number(plan.mt5_connections.current_balance)
+      : Number(plan.initial_modal || 1000)
     const accType = plan.mt5_connections?.account_type || 'standard'
     const currentBalance = accType === 'cent' ? rawBal / 100 : rawBal
 
@@ -115,7 +119,11 @@ export async function GET(
         id: plan.id,
         name: plan.name || 'Plan Compounding',
         mt5_connection_id: plan.mt5_connection_id,
-        source: plan.mt5_connections?.name || 'Manual Balance',
+        source: plan.mt5_connections
+          ? (plan.mt5_connections.broker_name
+              ? `${plan.mt5_connections.broker_name}${plan.mt5_connections.account_number ? ` (#${plan.mt5_connections.account_number})` : ''}`
+              : 'Akun MT5')
+          : 'Manual Balance',
         initialModal: Number(plan.initial_modal || 1000),
         isManualModal: Boolean(plan.is_manual_modal),
         profitPlanPercent: Number(plan.profit_plan_percent || 2.5),
@@ -162,7 +170,9 @@ export async function PUT(
       profit_plan_percent,
       risk_plan_percent,
       pip_risk,
-      pip_value_per_lot
+      pip_value_per_lot,
+      mt5_connection_id,
+      is_manual_modal,
     } = body
 
     // Fetch existing plan
@@ -196,6 +206,14 @@ export async function PUT(
       updatePayload.status = is_active ? 'active' : 'inactive'
     }
     if (is_archived !== undefined) updatePayload.is_archived = Boolean(is_archived)
+
+    // Allow user to switch MT5 account or switch to manual mode
+    if (mt5_connection_id !== undefined) {
+      updatePayload.mt5_connection_id = mt5_connection_id || null
+    }
+    if (is_manual_modal !== undefined) {
+      updatePayload.is_manual_modal = Boolean(is_manual_modal)
+    }
 
     let financialParamsChanged = false
     if (initial_modal !== undefined && Number(initial_modal) !== Number(existingPlan.initial_modal)) {

@@ -26,11 +26,20 @@ import {
   Save,
   X,
   RotateCcw,
-  Zap
+  Zap,
+  Link2,
 } from 'lucide-react'
 import { CompoundingRoadmap, RoadmapLevelNode } from '@/components/shared/compounding-roadmap'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+
+interface MT5ConnectionOption {
+  id: string
+  name: string
+  currentBalance: number
+  account_type: string
+}
+
 
 interface PlanDetail {
   id: string
@@ -50,6 +59,7 @@ interface PlanDetail {
   createdAt: string
   currentActiveLevel: number
   currentBalance: number
+  mt5_connection_id: string | null
 }
 
 interface LevelRow {
@@ -80,6 +90,9 @@ export default function CompoundingDetailPage() {
   const [editProfit, setEditProfit] = useState('')
   const [editRisk, setEditRisk] = useState('')
   const [editPipRisk, setEditPipRisk] = useState('')
+  // Sumber saldo: 'mt5' = dari akun MT5, 'manual' = modal manual
+  const [editMt5Source, setEditMt5Source] = useState<'mt5' | 'manual'>('manual')
+  const [editMt5ConnectionId, setEditMt5ConnectionId] = useState<string>('')
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['compounding-plan-detail', planId],
@@ -94,6 +107,18 @@ export default function CompoundingDetailPage() {
   const plan = data?.plan
   const levels = data?.levels || []
 
+  // Fetch data akun MT5 yang terkoneksi (untuk dropdown edit plan)
+  const { data: mt5Data } = useQuery({
+    queryKey: ['mt5-connections-edit'],
+    queryFn: async () => {
+      const res = await fetch('/api/mt5/connections')
+      if (!res.ok) return []
+      const json = await res.json()
+      return (json.connections || []) as MT5ConnectionOption[]
+    },
+    staleTime: 60_000,
+  })
+
   React.useEffect(() => {
     if (plan) {
       setRulesDraft(plan.rulesNotes || '')
@@ -101,6 +126,14 @@ export default function CompoundingDetailPage() {
       setEditProfit(String(plan.profitPlanPercent))
       setEditRisk(String(plan.riskPlanPercent))
       setEditPipRisk(String(plan.pipRisk))
+      // Inisialisasi sumber saldo dari plan
+      if (plan.mt5_connection_id) {
+        setEditMt5Source('mt5')
+        setEditMt5ConnectionId(plan.mt5_connection_id)
+      } else {
+        setEditMt5Source('manual')
+        setEditMt5ConnectionId('')
+      }
     }
   }, [plan])
 
@@ -158,16 +191,19 @@ export default function CompoundingDetailPage() {
   // Mutation: Save Plan Parameters (Edit Modal)
   const savePlanMutation = useMutation({
     mutationFn: async () => {
+      const payload: Record<string, unknown> = {
+        name: editName,
+        profit_plan_percent: parseFloat(editProfit),
+        risk_plan_percent: parseFloat(editRisk),
+        pip_risk: parseFloat(editPipRisk),
+        rules_notes: rulesDraft,
+        is_manual_modal: editMt5Source === 'manual',
+        mt5_connection_id: editMt5Source === 'mt5' ? (editMt5ConnectionId || null) : null,
+      }
       const res = await fetch(`/api/compounding/${planId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editName,
-          profit_plan_percent: parseFloat(editProfit),
-          risk_plan_percent: parseFloat(editRisk),
-          pip_risk: parseFloat(editPipRisk),
-          rules_notes: rulesDraft
-        }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error('Gagal memperbarui plan compounding')
       return res.json()
@@ -653,6 +689,7 @@ export default function CompoundingDetailPage() {
             </div>
 
             <div className="space-y-4 text-xs">
+              {/* Nama Plan */}
               <div>
                 <label className="block font-semibold mb-1 text-foreground">Nama Plan</label>
                 <input
@@ -661,6 +698,69 @@ export default function CompoundingDetailPage() {
                   onChange={(e) => setEditName(e.target.value)}
                   className="w-full px-3.5 py-2 bg-muted/40 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-medium"
                 />
+              </div>
+
+              {/* Sumber Saldo Compounding */}
+              <div>
+                <label className="block font-semibold mb-1.5 text-foreground flex items-center gap-1.5">
+                  <Link2 className="h-3.5 w-3.5 text-primary" /> Sumber Saldo Compounding
+                </label>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditMt5Source('mt5')}
+                    className={cn(
+                      'p-2.5 rounded-xl border text-left transition-all cursor-pointer',
+                      editMt5Source === 'mt5'
+                        ? 'border-primary bg-primary/10 text-foreground font-bold'
+                        : 'border-border bg-muted/20 text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    <span className="text-xs block">📊 Otomatis dari MT5</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">Tarik saldo real terkini</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMt5Source('manual')}
+                    className={cn(
+                      'p-2.5 rounded-xl border text-left transition-all cursor-pointer',
+                      editMt5Source === 'manual'
+                        ? 'border-primary bg-primary/10 text-foreground font-bold'
+                        : 'border-border bg-muted/20 text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    <span className="text-xs block">💰 Modal Manual</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">Mode simulasi / manual</span>
+                  </button>
+                </div>
+
+                {editMt5Source === 'mt5' && (
+                  <div>
+                    {mt5Data && mt5Data.length > 0 ? (
+                      <select
+                        value={editMt5ConnectionId}
+                        onChange={(e) => setEditMt5ConnectionId(e.target.value)}
+                        className="w-full px-3 py-2 bg-muted/40 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-mono text-xs"
+                      >
+                        <option value="">Pilih akun MT5...</option>
+                        {mt5Data.map((conn: MT5ConnectionOption) => {
+                          const accType = conn.account_type || 'standard'
+                          const rawBal = conn.currentBalance || 0
+                          const displayBal = accType === 'cent' ? rawBal / 100 : rawBal
+                          return (
+                            <option key={conn.id} value={conn.id}>
+                              {conn.name} — ${displayBal.toLocaleString('en-US', { maximumFractionDigits: 2 })} {accType === 'cent' ? '(Akun Cent)' : ''}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    ) : (
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 p-2.5 rounded-xl border border-amber-200 dark:border-amber-800/40">
+                        Belum ada akun MT5 terkoneksi. Pergi ke menu <strong>Import / MT5</strong> untuk menambahkan.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-3">

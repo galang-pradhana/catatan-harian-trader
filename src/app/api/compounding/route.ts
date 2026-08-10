@@ -15,9 +15,10 @@ export async function GET(request: NextRequest) {
     const includeArchived = searchParams.get('include_archived') === 'true'
 
     // Try primary query with full relations
+    // NOTE: mt5_connections uses 'current_balance' column (not 'balance')
     let { data: plans, error } = await supabase
       .from('compounding_plans')
-      .select('*, compounding_levels(*), mt5_connections(name, balance, account_type)')
+      .select('*, compounding_levels(*), mt5_connections(broker_name, account_number, current_balance, account_type)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -54,7 +55,10 @@ export async function GET(request: NextRequest) {
         ? rawLevels.sort((a: any, b: any) => a.level_number - b.level_number)
         : []
         
-      const rawBal = plan.mt5_connections?.balance ? Number(plan.mt5_connections.balance) : Number(plan.initial_modal || 1000)
+      // Read `current_balance` (synced from EA) — convert USC→USD for cent accounts
+      const rawBal = plan.mt5_connections?.current_balance != null
+        ? Number(plan.mt5_connections.current_balance)
+        : Number(plan.initial_modal || 1000)
       const accType = plan.mt5_connections?.account_type || 'standard'
       const currentBalance = accType === 'cent' ? rawBal / 100 : rawBal
 
@@ -76,7 +80,11 @@ export async function GET(request: NextRequest) {
         id: plan.id,
         name: plan.name || 'Plan Compounding',
         mt5_connection_id: plan.mt5_connection_id,
-        source: plan.mt5_connections?.name || 'Manual Balance',
+        source: plan.mt5_connections
+          ? (plan.mt5_connections.broker_name
+              ? `${plan.mt5_connections.broker_name}${plan.mt5_connections.account_number ? ` (#${plan.mt5_connections.account_number})` : ''}`
+              : 'Akun MT5')
+          : 'Manual Balance',
         initial_modal: Number(plan.initial_modal || 1000),
         is_manual_modal: Boolean(plan.is_manual_modal),
         profit_plan_percent: Number(plan.profit_plan_percent || 2.5),

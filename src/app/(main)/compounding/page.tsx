@@ -147,10 +147,11 @@ function CompoundingContent() {
   })
 
   // ── Fetch Live Real Metrics for Behavior & Purchase Goals ─────
+  // Fetch lebih banyak trades agar Net Profit terhitung akurat
   const { data: tradesMetricsData } = useQuery({
     queryKey: ['trades-real-metrics'],
     queryFn: async () => {
-      const res = await fetch('/api/trades?limit=100')
+      const res = await fetch('/api/trades?limit=500')
       if (!res.ok) return null
       return res.json()
     },
@@ -176,12 +177,17 @@ function CompoundingContent() {
     const disciplineCount = trades.filter((t) => t.trade_journal?.discipline === 'yes' || t.discipline === 'yes').length
     const disciplineStreak = psychologyLogsData?.disciplineStreak ?? 0
 
+    // Hitung Net Profit (hanya dari closed trades, PnL positif + negatif semua dihitung)
+    // Ini adalah akumulasi profit/loss bersih dari trading
+    const netTradingProfitUsd = closedTrades.reduce((sum: number, t: any) => sum + (Number(t.pnl) || 0), 0)
+
     return {
       totalTradesCount: trades.length,
       closedTradesCount: closedTrades.length,
       winRate,
       disciplineCount,
       disciplineStreak,
+      netTradingProfitUsd: Math.max(0, netTradingProfitUsd), // hanya profit positif untuk progress
     }
   }, [tradesMetricsData, psychologyLogsData])
 
@@ -190,9 +196,10 @@ function CompoundingContent() {
     return (plansData || []).find((p) => p.is_active && !p.is_archived) || plansData?.[0]
   }, [plansData])
 
-  const currentEquityUsd = activePlan?.current_balance ?? 1000
+  // Net Profit USD dari trading (untuk kalkulasi Target Pembelian)
+  const netTradingProfitUsd = realMetrics.netTradingProfitUsd ?? 0
   const USD_TO_IDR_RATE = 15500
-  const currentEquityIdr = currentEquityUsd * USD_TO_IDR_RATE
+  const netTradingProfitIdr = netTradingProfitUsd * USD_TO_IDR_RATE
 
   // ── Purchase Goals State (Target Pembelian Barang) ───────────
   const [purchaseGoals, setPurchaseGoals] = useState<PurchaseGoal[]>(() => {
@@ -575,7 +582,7 @@ function CompoundingContent() {
             )}
           </div>
 
-          {/* SECTION B: TARGET PEMBELIAN BARANG (AUTO-CALCULATED PROGRESS FROM EQUITY) */}
+          {/* SECTION B: TARGET PEMBELIAN BARANG (AUTO-CALCULATED PROGRESS FROM NET PROFIT) */}
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-5">
             <div className="flex items-center justify-between border-b border-border pb-4">
               <div>
@@ -583,7 +590,12 @@ function CompoundingContent() {
                   <ShoppingBag className="h-5 w-5 text-amber-400" /> Target Pembelian Barang &amp; Impian
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Progress ketercapaian dihitung <strong className="text-foreground">otomatis</strong> dari saldo equity terkini (${currentEquityUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}).
+                  Progress dihitung <strong className="text-foreground">otomatis</strong> dari{' '}
+                  <strong className="text-emerald-400">Net Profit Trading</strong> ({' '}
+                  {netTradingProfitUsd > 0
+                    ? `$${netTradingProfitUsd.toLocaleString('en-US', { maximumFractionDigits: 2 })} profit`
+                    : 'Belum ada profit trading'
+                  }).
                 </p>
               </div>
 
@@ -601,10 +613,12 @@ function CompoundingContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {purchaseGoals.map((goal) => {
                 const isIdr = goal.currency === 'IDR'
-                const userVal = isIdr ? currentEquityIdr : currentEquityUsd
+                // Progress BUKAN dari total equity, tapi dari Net Profit Trading
+                // Jika net profit 0 (belum ada trading), progress = 0%
+                const userProfitVal = isIdr ? netTradingProfitIdr : netTradingProfitUsd
                 const targetVal = goal.targetAmount
-                const pct = Math.min(100, Math.max(0, (userVal / targetVal) * 100))
-                const remaining = Math.max(0, targetVal - userVal)
+                const pct = targetVal > 0 ? Math.min(100, Math.max(0, (userProfitVal / targetVal) * 100)) : 0
+                const remaining = Math.max(0, targetVal - userProfitVal)
                 const isReached = pct >= 100
 
                 return (
@@ -648,7 +662,7 @@ function CompoundingContent() {
                       </div>
                     </div>
 
-                    {/* Auto-Calculated Progress Bar */}
+                    {/* Auto-Calculated Progress Bar (from Net Profit) */}
                     <div className="space-y-1">
                       <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                         <div
@@ -664,7 +678,9 @@ function CompoundingContent() {
                         <span className={cn('font-bold', isReached ? 'text-emerald-400' : 'text-amber-400')}>
                           {isReached
                             ? '🎉 Goal Terpesan / Tercapai!'
-                            : `Butuh ${isIdr ? `Rp ${remaining.toLocaleString('id-ID')}` : `$${remaining.toLocaleString()}`} profit lagi`}
+                            : userProfitVal <= 0
+                              ? '⏳ Mulai trading untuk progress'
+                              : `Butuh ${isIdr ? `Rp ${remaining.toLocaleString('id-ID')}` : `$${remaining.toLocaleString('en-US', { maximumFractionDigits: 2 })}`} profit lagi`}
                         </span>
                       </div>
                     </div>
