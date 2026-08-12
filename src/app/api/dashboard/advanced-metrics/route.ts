@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'DATABASE_ERROR', message: mfeErr.message }, { status: 500 })
     }
 
-    const mfeList = (mfeTrades ?? []).filter((t) => t.source === 'mt5_sync' && t.mfe_value !== null)
+    const mfeList = (mfeTrades ?? []).filter((t) => t.source !== 'csv_import' && t.mfe_value !== null)
     const csvExcludedCount = (mfeTrades ?? []).filter((t) => t.source === 'csv_import').length
 
     let avgMfePercent = 74.0 // fallback default if no MFE trades yet

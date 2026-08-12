@@ -27,7 +27,9 @@ import {
   FileText,
   Sparkles,
   X,
-  Target
+  Target,
+  Pencil,
+  Trash2
 } from 'lucide-react'
 import { Trade, SelfGrade, MoodType } from '@/types/trade'
 import { analyzeTradeExit, computeTradeActualRR } from '@/utils/trade-metrics'
@@ -35,6 +37,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/shared/toast'
 import { cn } from '@/lib/utils'
+import { ManualTradeModal } from '@/components/shared/manual-trade-modal'
 
 // ── API Helpers ───────────────────────────────────────────────
 async function fetchTradeDetail(id: string) {
@@ -135,6 +138,8 @@ export default function TradeDetailPage({
   const [newStrategyName,   setNewStrategyName]     = useState('')
   const [isAddTagOpen,      setIsAddTagOpen]        = useState(false)
   const [newTagName,        setNewTagName]          = useState('')
+  const [isEditModalOpen,   setIsEditModalOpen]     = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm]   = useState(false)
 
   // Fetch trade detail & metadata
   const { data: trade, isLoading, isError, refetch } = useQuery({
@@ -213,6 +218,25 @@ export default function TradeDetailPage({
     },
     onError: (err: Error) => {
       toast(err.message || 'Gagal menyimpan jurnal', 'error')
+    },
+  })
+
+  // Delete Mutation (manual only)
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/trades/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.message || 'Gagal menghapus trade')
+      }
+    },
+    onSuccess: () => {
+      toast('Trade manual berhasil dihapus', 'success')
+      queryClient.invalidateQueries({ queryKey: ['trades'] })
+      router.push('/trades')
+    },
+    onError: (err: Error) => {
+      toast(err.message || 'Gagal menghapus trade', 'error')
     },
   })
 
@@ -418,14 +442,45 @@ export default function TradeDetailPage({
             </div>
             <div>
               <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
-                1. Data Perdagangan (MT5 Executed Trade)
+                1. Data Perdagangan ({trade.source === 'manual' ? 'Manual Entry Trade' : trade.source === 'csv_import' ? 'CSV Import Trade' : 'MT5 Executed Trade'})
               </h2>
-              <p className="text-xs text-muted-foreground">Harga entry, exit, volume, ticket &amp; PnL terkunci dari MT5</p>
+              <p className="text-xs text-muted-foreground">
+                {trade.source === 'manual'
+                  ? 'Harga entry, exit, volume & PnL diinput secara manual'
+                  : trade.source === 'csv_import'
+                  ? 'Data diimpor dari file CSV history'
+                  : 'Harga entry, exit, volume, ticket & PnL terkunci dari MT5'}
+              </p>
             </div>
           </div>
-          <button type="button" className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
-            {section1Open ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Edit & Delete buttons untuk trade manual */}
+            {trade.source === 'manual' && (
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all"
+                  title="Edit data trade ini"
+                >
+                  <Pencil className="h-3 w-3" />
+                  <span className="hidden sm:inline">Edit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-destructive/15 text-destructive border border-destructive/30 hover:bg-destructive/25 transition-all"
+                  title="Hapus trade ini"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span className="hidden sm:inline">Hapus</span>
+                </button>
+              </div>
+            )}
+            <button type="button" className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
+              {section1Open ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
 
         {section1Open && (
@@ -454,7 +509,7 @@ export default function TradeDetailPage({
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Ticket: #{trade.mt5_ticket_id} • Sesi: <span className="text-foreground capitalize font-medium">{trade.session || 'N/A'}</span>
+                    Ticket: #{trade.mt5_ticket_id} • Sesi: <span className="text-foreground capitalize font-medium">{trade.session || 'N/A'}</span> • Sumber: <span className="text-amber-400 font-semibold">{trade.source === 'manual' ? '✍️ Manual Entry' : trade.source === 'csv_import' ? '📁 CSV Import' : '🤖 MT5 Sync'}</span>
                   </p>
                 </div>
               </div>
@@ -944,6 +999,73 @@ export default function TradeDetailPage({
                 onClick={() => addTagMutation.mutate(newTagName.trim())}
               >
                 {addTagMutation.isPending ? 'Menyimpan...' : 'Simpan Tag'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✏️ EDIT TRADE MODAL (Manual trades only) */}
+      {trade.source === 'manual' && (
+        <ManualTradeModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false)
+            refetch()
+          }}
+          mode="edit"
+          tradeId={id}
+          initialData={{
+            symbol:     trade.symbol,
+            direction:  trade.direction as 'buy' | 'sell',
+            volume:     String(trade.volume ?? ''),
+            openPrice:  String(trade.open_price ?? trade.openPrice ?? ''),
+            closePrice: String(trade.close_price ?? trade.closePrice ?? ''),
+            openTime:   trade.open_time ?? trade.openTime ?? '',
+            closeTime:  trade.close_time ?? trade.closeTime ?? '',
+            sl:         String(trade.sl ?? ''),
+            tp:         String(trade.tp ?? ''),
+            pnl:        String(trade.pnl ?? ''),
+            commission: String(trade.commission ?? '0'),
+            swap:       String(trade.swap ?? '0'),
+            session:    (trade.session as any) ?? '',
+          }}
+        />
+      )}
+
+      {/* 🗑️ DELETE CONFIRM MODAL */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-card border border-destructive/30 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-destructive/15 border border-destructive/30 flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-foreground">Hapus Trade Manual?</h3>
+                <p className="text-xs text-muted-foreground">Tindakan ini tidak dapat dibatalkan</p>
+              </div>
+            </div>
+
+            <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3">
+              <p className="text-xs text-destructive/90">
+                Trade <strong>{trade.symbol}</strong> ({trade.direction?.toUpperCase()}) akan dihapus beserta semua catatan jurnal dan screenshot yang terkait.
+              </p>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setShowDeleteConfirm(false)}>
+                Batal
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                isLoading={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate()}
+                className="font-bold"
+              >
+                {!deleteMutation.isPending && <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
+                Ya, Hapus
               </Button>
             </div>
           </div>

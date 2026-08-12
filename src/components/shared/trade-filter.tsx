@@ -11,6 +11,7 @@ export interface FilterState {
   result: 'all' | 'profit' | 'loss'
   journalStatus: 'all' | 'complete' | 'incomplete'
   strategyId: string
+  source: 'all' | 'manual' | 'mt5_sync' | 'csv_import'
   month?: string
   date?: string
 }
@@ -47,6 +48,7 @@ export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterPro
   if (filters.result !== 'all') activeFilterCount++
   if (filters.journalStatus !== 'all') activeFilterCount++
   if (filters.strategyId !== 'all') activeFilterCount++
+  if (filters.source !== 'all') activeFilterCount++
   if (filters.month) activeFilterCount++
   if (filters.date) activeFilterCount++
 
@@ -157,6 +159,19 @@ export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterPro
             🔴 Hit SL / Loss
           </button>
 
+          <button
+            type="button"
+            onClick={() => handleChange('source', filters.source === 'manual' ? 'all' : 'manual')}
+            className={cn(
+              'px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all shrink-0 cursor-pointer',
+              filters.source === 'manual'
+                ? 'bg-blue-500 text-white border-blue-500 font-bold shadow-xs'
+                : 'bg-muted/30 border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted/60'
+            )}
+          >
+            ✍️ Manual Entry
+          </button>
+
           {filters.month && (
             <button
               type="button"
@@ -186,7 +201,7 @@ export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterPro
 
       {/* Expanded Filter Panel Dropdown */}
       {isPanelOpen && (
-        <div className="pt-3 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="pt-3 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
           <div>
             <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
               Filter Bulan
@@ -265,6 +280,22 @@ export function TradeFilter({ filters, onFilterChange, onReset }: TradeFilterPro
               <option value="GBPUSD">GBPUSD</option>
               <option value="USDJPY">USDJPY</option>
               <option value="BTCUSD">BTCUSD</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+              Sumber Data
+            </label>
+            <select
+              value={filters.source}
+              onChange={(e) => handleChange('source', (e.target.value as any))}
+              className="w-full bg-background border border-border rounded-xl px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">Semua Sumber</option>
+              <option value="manual">✍️ Manual Entry</option>
+              <option value="mt5_sync">🤖 MT5 / EA Sync</option>
+              <option value="csv_import">📁 CSV Import</option>
             </select>
           </div>
         </div>

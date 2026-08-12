@@ -21,6 +21,7 @@ export interface TradeListItemProps {
   onToggleSelect?: (trade: Trade) => void
   onSelect?: (trade: Trade) => void
   onOpenGroup?: (groupId: string) => void
+  onCloseTrade?: (trade: Trade) => void
 }
 
 const moodEmojis: Record<string, { label: string; emoji: string }> = {
@@ -38,6 +39,7 @@ export function TradeListItem({
   onToggleSelect,
   onSelect,
   onOpenGroup,
+  onCloseTrade,
 }: TradeListItemProps) {
   const isBuy = trade.direction === 'buy'
   const isProfit = (trade.pnl || 0) > 0
@@ -146,9 +148,24 @@ export function TradeListItem({
               {trade.pnl > 0 ? 'WIN' : trade.pnl < 0 ? 'LOSS' : 'BE'}
             </span>
           ) : (
-            <span className="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded bg-blue-600 text-white tracking-wider shadow-2xs">
-              RUNNING
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded bg-blue-600 text-white tracking-wider shadow-2xs">
+                RUNNING
+              </span>
+              {isOpen && isManual && onCloseTrade && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onCloseTrade(trade)
+                  }}
+                  className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500 text-black hover:bg-emerald-400 transition-colors shadow-2xs cursor-pointer"
+                  title="Tutup posisi trade manual ini"
+                >
+                  Tutup Trade
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -433,6 +450,20 @@ export function TradeListItem({
 
       {/* Right Section */}
       <div className="text-right flex flex-col items-end gap-1 shrink-0">
+        {isOpen && isManual && onCloseTrade && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onCloseTrade(trade)
+            }}
+            className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg bg-emerald-500 text-black hover:bg-emerald-400 transition-colors shadow-2xs cursor-pointer"
+            title="Tutup posisi trade manual ini"
+          >
+            ✓ Tutup Trade
+          </button>
+        )}
+
         <div className="flex items-center gap-1.5">
           {isOpen && (
             <span className="relative flex h-2 w-2">

@@ -24,6 +24,8 @@ import { TradeListItem } from '@/components/shared/trade-list-item'
 import { TradeFilter, FilterState } from '@/components/shared/trade-filter'
 import { CompoundingTrackerPanel } from '@/components/shared/compounding-tracker-panel'
 import { TradeJournalDrawer } from '@/components/shared/trade-journal-drawer'
+import { ManualTradeModal } from '@/components/shared/manual-trade-modal'
+import { CloseTradeModal } from '@/components/shared/close-trade-modal'
 import { MobileStickyHeader } from '@/components/shared/mobile-sticky-header'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -37,6 +39,7 @@ const initialFilterState: FilterState = {
   result:        'all',
   journalStatus: 'all',
   strategyId:    'all',
+  source:        'all',
 }
 
 interface ApiTrade {
@@ -103,6 +106,7 @@ async function fetchTrades(filters: FilterState, page: number): Promise<{ trades
   if (filters.status !== 'all')        params.set('status', filters.status)
   if (filters.result !== 'all')        params.set('result', filters.result)
   if (filters.journalStatus !== 'all') params.set('journalStatus', filters.journalStatus)
+  if (filters.source !== 'all')        params.set('source', filters.source)
   if (filters.month)                   params.set('month', filters.month)
   if (filters.date)                    params.set('date', filters.date)
 
@@ -144,6 +148,8 @@ function TradesPageContent() {
   // Drawer & Manual Trade States
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null)
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false)
+  const [tradeToClose, setTradeToClose] = useState<Trade | null>(null)
 
   // Split-Pane Collapsible State with LocalStorage Persistence
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false)
@@ -160,9 +166,7 @@ function TradesPageContent() {
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
 
   const handleOpenManualDrawer = () => {
-    setBatchTrades([])
-    setSelectedTradeId(null)
-    setIsDrawerOpen(true)
+    setIsManualModalOpen(true)
   }
 
   const handleSelectTrade = (id: string) => {
@@ -714,6 +718,7 @@ function TradesPageContent() {
                             onToggleSelect={handleToggleSelectTrade}
                             onSelect={() => handleSelectTrade(trade.id)}
                             onOpenGroup={handleOpenGroupDrawer}
+                            onCloseTrade={(t) => setTradeToClose(t)}
                           />
                         ))}
 
@@ -959,6 +964,35 @@ function TradesPageContent() {
           setSelectedTradeId(id)
         }}
       />
+
+      {/* MANUAL TRADE MODAL */}
+      <ManualTradeModal
+        isOpen={isManualModalOpen}
+        onClose={() => {
+          setIsManualModalOpen(false)
+          refetch()
+        }}
+        mode="create"
+      />
+
+      {/* CLOSE TRADE SHORTCUT MODAL */}
+      {tradeToClose && (
+        <CloseTradeModal
+          isOpen={Boolean(tradeToClose)}
+          onClose={() => {
+            setTradeToClose(null)
+            refetch()
+          }}
+          trade={{
+            id: tradeToClose.id,
+            symbol: tradeToClose.symbol,
+            direction: tradeToClose.direction,
+            openPrice: tradeToClose.openPrice,
+            volume: tradeToClose.volume,
+            pnl: tradeToClose.pnl,
+          }}
+        />
+      )}
     </div>
   )
 }

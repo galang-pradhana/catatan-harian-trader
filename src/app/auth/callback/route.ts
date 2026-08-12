@@ -6,16 +6,24 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
 
+  // Handle PKCE code exchange (OAuth & magic link & password recovery)
   if (code) {
     const supabase = await createClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      // Jika session berasal dari recovery (lupa password), arahkan ke halaman reset
+      const sessionType = data?.user?.recovery_sent_at ? 'recovery' : null
+      const redirectTarget = next === '/reset-password' || sessionType === 'recovery'
+        ? '/reset-password'
+        : next
+
+      return NextResponse.redirect(`${origin}${redirectTarget}`)
     } else {
-      console.error('OAuth Callback Error:', error)
+      console.error('Auth Callback Error:', error)
       return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`)
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=Could+not+authenticate+with+Google`)
+  return NextResponse.redirect(`${origin}/login?error=Link+tidak+valid+atau+sudah+kadaluarsa`)
 }

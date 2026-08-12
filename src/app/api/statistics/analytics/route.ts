@@ -282,7 +282,7 @@ export async function GET(request: NextRequest) {
         actualRRCount++
       }
 
-      if (t.source === 'mt5_sync' && t.mfe_value !== null && t.open_price && t.close_price) {
+      if (t.mfe_value !== null && t.open_price && t.close_price) {
         const eff = calculateMFEPercent(Number(t.open_price), Number(t.close_price), Number(t.mfe_value), t.direction)
         if (eff !== null) mfeEfficiencies.push(eff)
       }

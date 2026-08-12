@@ -1,16 +1,51 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Menu, Moon, Sun } from 'lucide-react'
 import { Sidebar } from '@/components/shared/sidebar'
 import { MobileNavDrawer } from '@/components/shared/mobile-nav-drawer'
 import { useThemeStore } from '@/store/theme-store'
+import { useRouter } from 'next/navigation'
+
+// ─── Kunci untuk remember me session guard ───────────────────────
+const REMEMBER_ME_KEY = 'chtrader_remember_me'
+const SESSION_ONLY_KEY = 'chtrader_session_only'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [isNavOpen, setIsNavOpen] = useState(false)
   const { theme, toggleTheme } = useThemeStore()
+  const router = useRouter()
+
+  // ─── Session Guard: auto sign-out jika "Remember Me" dinonaktifkan ──
+  // Jika user login TANPA remember me, sessionStorage akan berisi SESSION_ONLY_KEY.
+  // Saat browser ditutup & dibuka ulang, sessionStorage bersih → otomatis sign out.
+  useEffect(() => {
+    const checkSessionGuard = async () => {
+      try {
+        const rememberMe = localStorage.getItem(REMEMBER_ME_KEY)
+        const sessionActive = sessionStorage.getItem(SESSION_ONLY_KEY)
+
+        // Hanya jalankan jika user memilih "session only" (remember me = false)
+        if (rememberMe === 'false' && !sessionActive) {
+          // sessionStorage kosong = browser restart → sign out
+          const { createClient } = await import('@/services/supabase/client')
+          const supabase = createClient()
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session) {
+            await supabase.auth.signOut()
+            localStorage.removeItem(REMEMBER_ME_KEY)
+            router.replace('/login')
+          }
+        }
+      } catch {
+        // Gagal silent — tidak block UI
+      }
+    }
+
+    checkSessionGuard()
+  }, [router])
 
   return (
     <div className="flex min-h-screen bg-background">

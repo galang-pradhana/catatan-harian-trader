@@ -13,11 +13,24 @@ import { toast } from '@/components/shared/toast'
 
 import { Suspense } from 'react'
 
+// ─── Kunci localStorage untuk remember me ────────────────────────
+const REMEMBER_ME_KEY = 'chtrader_remember_me'
+const SESSION_ONLY_KEY = 'chtrader_session_only'
+
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
+
+  // Load preferensi remember me sebelumnya
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(REMEMBER_ME_KEY)
+      if (saved === 'true') setRememberMe(true)
+    } catch {}
+  }, [])
 
   useEffect(() => {
     const errorParam = searchParams.get('error')
@@ -98,6 +111,17 @@ function LoginContent() {
             return
           }
         }
+
+        // ── Simpan preferensi remember me ─────────────────────────
+        try {
+          localStorage.setItem(REMEMBER_ME_KEY, String(rememberMe))
+          if (!rememberMe) {
+            // Tandai sebagai session-only → akan di-logout saat browser ditutup & dibuka ulang
+            sessionStorage.setItem(SESSION_ONLY_KEY, 'true')
+          } else {
+            sessionStorage.removeItem(SESSION_ONLY_KEY)
+          }
+        } catch {}
 
         toast('Masuk berhasil! Mengalihkan ke Dashboard...', 'success')
         setTimeout(() => {
@@ -221,16 +245,33 @@ function LoginContent() {
 
         {/* Remember Me & Forgot Password Row */}
         <div className="flex items-center justify-between text-xs pt-1">
-          <label className="flex items-center gap-2 cursor-pointer select-none text-muted-foreground hover:text-foreground">
-            <input
-              type="checkbox"
-              className="rounded border-border text-primary focus:ring-primary h-4 w-4 bg-card"
-            />
-            <span>Remember me</span>
+          <label className="flex items-center gap-2 cursor-pointer select-none group">
+            <div
+              onClick={() => setRememberMe((v) => !v)}
+              className={`relative w-4 h-4 rounded border transition-all duration-150 flex items-center justify-center cursor-pointer shrink-0 ${
+                rememberMe
+                  ? 'bg-primary border-primary'
+                  : 'bg-card border-border group-hover:border-primary/50'
+              }`}
+            >
+              {rememberMe && (
+                <svg className="w-2.5 h-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </div>
+            <span
+              onClick={() => setRememberMe((v) => !v)}
+              className={`transition-colors duration-150 ${
+                rememberMe ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Remember me
+            </span>
           </label>
           <button
             type="button"
-            onClick={() => toast('Fitur Lupa Password dikirim ke email', 'info')}
+            onClick={() => router.push('/forgot-password')}
             className="text-primary hover:underline font-semibold"
           >
             Forgot password?

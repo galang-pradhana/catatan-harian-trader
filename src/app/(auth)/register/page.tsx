@@ -109,15 +109,21 @@ function RegisterContent() {
             })
           } catch {}
 
-          toast('Registrasi berhasil! Akun kamu sedang dalam antrian approval admin (biasanya 1x24 jam).', 'success')
+          toast(
+            '✅ Registrasi berhasil! Cek email kamu untuk konfirmasi, lalu tunggu persetujuan admin (biasanya 1x24 jam).',
+            'success'
+          )
+          setTimeout(() => {
+            router.push('/login')
+          }, 2500)
+        } else {
+          toast(
+            '✅ Registrasi berhasil! Silakan cek email untuk konfirmasi akun sebelum login.',
+            'success'
+          )
           setTimeout(() => {
             router.push('/login')
           }, 2000)
-        } else {
-          toast('Registrasi berhasil! Silakan cek email Anda untuk konfirmasi.', 'success')
-          setTimeout(() => {
-            router.push('/login')
-          }, 1500)
         }
         return
       }

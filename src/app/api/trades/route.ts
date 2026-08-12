@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     const strategyId    = searchParams.get('strategyId')
     const result        = searchParams.get('result') // 'profit' | 'loss' | null
     const journalStatus = searchParams.get('journalStatus') // 'complete' | 'incomplete' | null
+    const source        = searchParams.get('source') // 'manual' | 'mt5_sync' | 'csv_import' | null
     const page          = parseInt(searchParams.get('page') || '1', 10)
     const limit         = Math.min(parseInt(searchParams.get('limit') || '20', 10), 100)
     const offset        = (page - 1) * limit
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
         id, mt5_connection_id, mt5_ticket_id, symbol, direction, volume,
         open_price, close_price, open_time, close_time,
         sl, tp, pnl, commission, swap, status, session,
-        journal_status, created_at,
+        journal_status, source, created_at,
         trade_journal (
           id, group_id, group_name, reason_entry, mood, discipline, self_grade, updated_at
         ),
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
     if (journalStatus) query = query.eq('journal_status', journalStatus)
     if (startDate)     query = query.gte('open_time', startDate)
     if (endDate)       query = query.lte('open_time', endDate)
+    if (source)        query = query.eq('source', source)
 
     if (date) {
       query = query
