@@ -71,13 +71,13 @@ export default function MT5Page() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-foreground">Hubungkan MT5</h1>
+            <h1 className="text-2xl font-bold text-foreground">Hubungkan MT4 / MT5</h1>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-secondary font-semibold text-primary border border-border">
               {connections.length} / {MAX_MT5_CONNECTIONS_PER_USER} Akun
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Hubungkan MetaTrader 5 via Expert Advisor (EA) tanpa memasukkan kredensial broker.
+            Hubungkan MetaTrader 4 atau MetaTrader 5 via Expert Advisor (EA) tanpa memasukkan kredensial broker.
           </p>
         </div>
 
@@ -114,7 +114,7 @@ export default function MT5Page() {
         <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl flex items-center gap-3 text-xs text-amber-500">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>
-            Batas maksimal {MAX_MT5_CONNECTIONS_PER_USER} koneksi MT5 telah tercapai per akun. Hapus salah satu koneksi untuk menambahkan koneksi baru.
+            Batas maksimal {MAX_MT5_CONNECTIONS_PER_USER} koneksi trading telah tercapai per akun. Hapus salah satu koneksi untuk menambahkan koneksi baru.
           </span>
         </div>
       )}
@@ -139,10 +139,10 @@ export default function MT5Page() {
           </div>
           <div className="max-w-sm space-y-1">
             <h3 className="text-lg font-bold text-foreground">
-              Belum Ada Koneksi MT5
+              Belum Ada Koneksi Trading
             </h3>
             <p className="text-xs text-muted-foreground">
-              Hubungkan terminal MetaTrader 5 Anda untuk mulai membaca closed trade history & posisi terbuka secara otomatis.
+              Hubungkan terminal MetaTrader 4 atau 5 Anda untuk mulai membaca closed trade history & posisi terbuka secara otomatis.
             </p>
           </div>
           <Button variant="primary" onClick={() => setIsModalOpen(true)}>

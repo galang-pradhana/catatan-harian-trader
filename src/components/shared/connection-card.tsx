@@ -109,6 +109,14 @@ export function ConnectionCard({
                 {connection.accountNumber ? `#${connection.accountNumber}` : 'Menunggu Akun'}
               </h3>
               <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                <span className={cn(
+                  'text-[9px] font-mono font-black px-1.5 py-0.5 rounded-md border shrink-0',
+                  (connection.platform === 'mt4')
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                    : 'bg-primary/15 text-primary border-primary/30'
+                )}>
+                  {(connection.platform || 'mt5').toUpperCase()}
+                </span>
                 <p className="text-xs text-muted-foreground font-medium truncate">
                   {connection.brokerName || 'Broker Belum Terdeteksi'}
                 </p>
@@ -133,7 +141,7 @@ export function ConnectionCard({
           <div className="bg-muted/40 border border-border/60 rounded-xl p-3 text-xs space-y-1">
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground font-semibold text-[11px] uppercase tracking-wider">
-                Saldo Realtime MT5:
+                Saldo Realtime:
               </span>
               <span className="font-mono font-extrabold text-sm text-emerald-400">
                 {isCent ? `${rawBalance.toLocaleString('en-US')} USC` : `$${rawBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}

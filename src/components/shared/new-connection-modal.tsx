@@ -1,12 +1,10 @@
-'use client'
-
 import React, { useState, useEffect } from 'react'
-import { Copy, Check, Download, Info, Terminal, Key, Coins } from 'lucide-react'
+import { Copy, Check, Download, Info, Terminal, Key, Coins, Monitor } from 'lucide-react'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/shared/toast'
-import { EA_DOWNLOAD_FILENAME } from '@/constants/mt5'
-import { AccountType } from '@/types/mt5'
+import { EA_DOWNLOAD_FILENAME, EA_MT4_DOWNLOAD_FILENAME } from '@/constants/mt5'
+import { AccountType, Platform } from '@/types/mt5'
 import { cn } from '@/lib/utils'
 
 export interface NewConnectionModalProps {
@@ -23,6 +21,7 @@ export function NewConnectionModal({
   const [token, setToken] = useState('')
   const [copied, setCopied] = useState(false)
   const [isLoadingToken, setIsLoadingToken] = useState(false)
+  const [platform, setPlatform] = useState<Platform>('mt5')
   const [accountType, setAccountType] = useState<AccountType>('standard')
 
   useEffect(() => {
@@ -33,7 +32,7 @@ export function NewConnectionModal({
           const res = await fetch('/api/mt5/connections', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accountType }),
+            body: JSON.stringify({ accountType, platform }),
           })
           const data = await res.json()
           if (res.ok && data.token) {
@@ -49,7 +48,7 @@ export function NewConnectionModal({
       }
       createConnectionToken()
     }
-  }, [isOpen, accountType])
+  }, [isOpen, accountType, platform])
 
   const handleCopyToken = () => {
     if (!token) return
@@ -60,18 +59,22 @@ export function NewConnectionModal({
   }
 
   const handleDownloadEA = async () => {
+    const isMT4 = platform === 'mt4'
+    const fileName = isMT4 ? EA_MT4_DOWNLOAD_FILENAME : EA_DOWNLOAD_FILENAME
+    const fileUrl = isMT4 ? '/ea/CatatanHarianTrader_MT4.mq4' : '/ea/CatatanHarianTrader.mq5'
+
     try {
-      toast(`Mendownload ${EA_DOWNLOAD_FILENAME}...`, 'info')
-      const res = await fetch('/ea/CatatanHarianTrader.mq5')
+      toast(`Mendownload ${fileName}...`, 'info')
+      const res = await fetch(fileUrl)
       if (!res.ok) {
-        throw new Error('Gagal mengambil file EA MQL5 dari server')
+        throw new Error(`Gagal mengambil file EA ${isMT4 ? 'MQL4' : 'MQL5'} dari server`)
       }
       const code = await res.text()
 
       const element = document.createElement('a')
       const file = new Blob([code], { type: 'text/plain' })
       element.href = URL.createObjectURL(file)
-      element.download = EA_DOWNLOAD_FILENAME
+      element.download = fileName
       document.body.appendChild(element)
       element.click()
       document.body.removeChild(element)
@@ -82,19 +85,75 @@ export function NewConnectionModal({
     }
   }
 
+  const isMT4 = platform === 'mt4'
+  const targetExtension = isMT4 ? '.mq4' : '.mq5'
+  const targetFolder = isMT4 ? 'MQL4/Experts/' : 'MQL5/Experts/'
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Hubungkan Akun MT5 Baru"
-      description="Pilih tipe akun dan ikuti langkah berikut untuk menempelkan Expert Advisor (EA) di terminal MetaTrader 5 Anda."
+      title="Hubungkan Akun Trading Baru"
+      description="Pilih platform MetaTrader, tipe akun, dan ikuti langkah berikut untuk menempelkan Expert Advisor (EA) di terminal Anda."
       className="max-w-xl"
     >
       <div className="space-y-4 my-2 max-h-[70vh] overflow-y-auto pr-1">
+        {/* Step 0: Platform Selection (MT4 vs MT5) */}
+        <div className="bg-card border border-border p-3.5 rounded-xl space-y-2">
+          <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <Monitor className="h-4 w-4 text-primary" /> 1. Pilih Platform Trading Anda:
+          </label>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setPlatform('mt4')}
+              className={cn(
+                'py-2.5 px-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2.5',
+                platform === 'mt4'
+                  ? 'bg-blue-500/15 border-blue-500 text-foreground font-bold shadow-xs'
+                  : 'bg-muted/30 border-border/70 text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <div className={cn(
+                'h-7 w-7 rounded-lg font-mono text-xs font-black flex items-center justify-center shrink-0',
+                platform === 'mt4' ? 'bg-blue-500 text-white' : 'bg-muted text-muted-foreground'
+              )}>
+                MT4
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-extrabold block truncate">MetaTrader 4</span>
+                <span className="text-[10px] text-muted-foreground block truncate">MQL4 Read-Only</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPlatform('mt5')}
+              className={cn(
+                'py-2.5 px-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2.5',
+                platform === 'mt5'
+                  ? 'bg-primary/15 border-primary text-foreground font-bold shadow-xs'
+                  : 'bg-muted/30 border-border/70 text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <div className={cn(
+                'h-7 w-7 rounded-lg font-mono text-xs font-black flex items-center justify-center shrink-0',
+                platform === 'mt5' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+              )}>
+                MT5
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-extrabold block truncate">MetaTrader 5</span>
+                <span className="text-[10px] text-muted-foreground block truncate">MQL5 Read-Only</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* Account Type Selector */}
         <div className="bg-card border border-border p-3.5 rounded-xl space-y-2">
           <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-            <Coins className="h-4 w-4 text-amber-500" /> Tipe Akun MT5 Anda:
+            <Coins className="h-4 w-4 text-amber-500" /> 2. Tipe Akun {platform.toUpperCase()}:
           </label>
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -162,7 +221,7 @@ export function NewConnectionModal({
         {/* Step-by-Step Instructions */}
         <div className="space-y-3">
           <h4 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <Terminal className="h-4 w-4 text-primary" /> Petunjuk Pemasangan di MT5:
+            <Terminal className="h-4 w-4 text-primary" /> Petunjuk Pemasangan di {platform.toUpperCase()}:
           </h4>
 
           <ol className="space-y-2.5 text-xs text-muted-foreground">
@@ -171,7 +230,7 @@ export function NewConnectionModal({
                 1
               </span>
               <div>
-                <strong className="text-foreground font-semibold">Download File EA:</strong> Click tombol &quot;Download EA (.mq5)&quot; di bawah ini.
+                <strong className="text-foreground font-semibold">Download File EA:</strong> Click tombol &quot;Download EA ({targetExtension})&quot; di bawah ini.
               </div>
             </li>
 
@@ -180,7 +239,7 @@ export function NewConnectionModal({
                 2
               </span>
               <div>
-                <strong className="text-foreground font-semibold">Salin ke Folder MT5:</strong> Buka MT5 Desktop → Menu <code className="text-primary font-mono">File</code> → <code className="text-primary font-mono">Open Data Folder</code> → masuki folder <code className="text-primary font-mono">MQL5/Experts/</code> dan paste file EA di sana.
+                <strong className="text-foreground font-semibold">Salin ke Folder {platform.toUpperCase()}:</strong> Buka {platform.toUpperCase()} Desktop → Menu <code className="text-primary font-mono">File</code> → <code className="text-primary font-mono">Open Data Folder</code> → masuki folder <code className="text-primary font-mono">{targetFolder}</code> dan paste file EA di sana.
               </div>
             </li>
 
@@ -189,7 +248,7 @@ export function NewConnectionModal({
                 3
               </span>
               <div>
-                <strong className="text-foreground font-semibold">Izinkan WebRequest:</strong> Buka MT5 → <code className="text-primary font-mono">Tools</code> → <code className="text-primary font-mono">Options</code> → tab <code className="text-primary font-mono">Expert Advisors</code> → centang <em>&quot;Allow WebRequest for listed URL&quot;</em> dan tambahkan URL aplikasi ini.
+                <strong className="text-foreground font-semibold">Izinkan WebRequest:</strong> Buka {platform.toUpperCase()} → <code className="text-primary font-mono">Tools</code> → <code className="text-primary font-mono">Options</code> → tab <code className="text-primary font-mono">Expert Advisors</code> → centang <em>&quot;Allow WebRequest for listed URL&quot;</em> dan tambahkan URL aplikasi ini.
               </div>
             </li>
 
@@ -219,9 +278,10 @@ export function NewConnectionModal({
           Tutup
         </Button>
         <Button variant="primary" onClick={handleDownloadEA} disabled={isLoadingToken || !token}>
-          <Download className="h-4 w-4 mr-2" /> Download EA (.mq5)
+          <Download className="h-4 w-4 mr-2" /> Download EA ({targetExtension})
         </Button>
       </div>
     </Modal>
   )
 }
+

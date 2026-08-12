@@ -5,7 +5,8 @@ import { hashToken } from '@/utils/token'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { token, account_number, broker_name } = body
+    const { token, account_number, broker_name, platform } = body
+    const platformVal = (platform && String(platform).toLowerCase() === 'mt4') ? 'mt4' : 'mt5'
 
     if (!token || typeof token !== 'string') {
       return NextResponse.json(
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
         message: 'Handshake EA berhasil (Demo Mode)',
         accountNumber: account_number ? String(account_number) : '51294821',
         brokerName: broker_name ? String(broker_name) : 'IC Markets Global',
+        platform: platformVal,
       })
     }
 
@@ -61,26 +63,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'MT5_INVALID_TOKEN',
-          message: 'Token API MT5 tidak ditemukan atau sudah dicabut',
+          message: 'Token API MT5/MT4 tidak ditemukan atau sudah dicabut',
         },
         { status: 401 }
       )
     }
 
-    // 2. Update status to 'connected' and fill account details
+    // 2. Update status to 'connected' and fill account details & platform
     const accNumStr = account_number ? String(account_number) : null
     const brokerStr = broker_name ? String(broker_name) : null
 
-    const { error: updateError } = await supabase
+    let { error: updateError } = await supabase
       .from('mt5_connections')
       .update({
         status: 'connected',
         account_number: accNumStr,
         broker_name: brokerStr,
+        platform: platformVal,
         last_error: null,
         last_synced_at: new Date().toISOString(),
       })
       .eq('id', connection.id)
+
+    // Fallback if platform column does not exist in DB yet
+    if (updateError && updateError.message.includes('platform')) {
+      const fallback = await supabase
+        .from('mt5_connections')
+        .update({
+          status: 'connected',
+          account_number: accNumStr,
+          broker_name: brokerStr,
+          last_error: null,
+          last_synced_at: new Date().toISOString(),
+        })
+        .eq('id', connection.id)
+      updateError = fallback.error
+    }
 
     if (updateError) {
       return NextResponse.json(
@@ -89,10 +107,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const platformLabel = platformVal.toUpperCase()
     return NextResponse.json({
       success: true,
-      message: 'Handshake EA MetaTrader 5 berhasil. Status koneksi: Terhubung.',
+      message: `Handshake EA ${platformLabel} berhasil. Status koneksi: Terhubung.`,
       connectionId: connection.id,
+      platform: platformVal,
     })
   } catch (err: any) {
     return NextResponse.json(

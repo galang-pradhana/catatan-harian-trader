@@ -30,13 +30,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Try primary query with account_type column
+    // Try primary query with account_type & platform columns
     let rawConnections: any[] | null = null
     let error: any = null
 
     const primaryRes = await supabase
       .from('mt5_connections')
-      .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at, current_balance, balance_updated_at, account_type')
+      .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at, current_balance, balance_updated_at, account_type, platform')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -46,14 +46,24 @@ export async function GET(request: NextRequest) {
       console.warn('GET /api/mt5/connections primary select warning:', primaryRes.error.message)
       const fallbackRes = await supabase
         .from('mt5_connections')
-        .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at, current_balance, balance_updated_at')
+        .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at, current_balance, balance_updated_at, account_type')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
       if (!fallbackRes.error) {
         rawConnections = fallbackRes.data
       } else {
-        error = fallbackRes.error
+        const legacyRes = await supabase
+          .from('mt5_connections')
+          .select('id, account_number, broker_name, status, last_error, last_synced_at, created_at, current_balance, balance_updated_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+        
+        if (!legacyRes.error) {
+          rawConnections = legacyRes.data
+        } else {
+          error = legacyRes.error
+        }
       }
     }
 
@@ -89,8 +99,9 @@ export async function GET(request: NextRequest) {
       
       const effectiveBalance = dbBal !== null && dbBal > 0 ? dbBal : (tradePnlSum !== 0 ? tradePnlSum : (dbBal || 0))
       const accNumStr = c.account_number ? String(c.account_number) : ''
-      const brokerStr = c.broker_name || 'MT5 Account'
+      const brokerStr = c.broker_name || 'Trading Account'
       const accType = c.account_type || 'standard'
+      const platformVal = (c.platform && String(c.platform).toLowerCase() === 'mt4') ? 'mt4' : 'mt5'
       const balanceUsd = accType === 'cent' ? effectiveBalance / 100 : effectiveBalance
 
       return {
@@ -106,6 +117,7 @@ export async function GET(request: NextRequest) {
         createdAt: c.created_at,
         accountType: accType,
         account_type: accType,
+        platform: platformVal,
         currentBalance: effectiveBalance,
         current_balance: effectiveBalance,
         balance: effectiveBalance,
@@ -125,14 +137,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/mt5/connections — Generate new token & create pending MT5 connection
+// POST /api/mt5/connections — Generate new token & create pending MT5/MT4 connection
 export async function POST(request: NextRequest) {
   try {
     let accountType = 'standard'
+    let platform = 'mt5'
     try {
       const body = await request.json()
       if (body?.accountType || body?.account_type) {
         accountType = body.accountType || body.account_type
+      }
+      if (body?.platform) {
+        platform = String(body.platform).toLowerCase() === 'mt4' ? 'mt4' : 'mt5'
       }
     } catch {
       // Body optional
@@ -153,10 +169,11 @@ export async function POST(request: NextRequest) {
             status: 'pending',
             accountType,
             account_type: accountType,
+            platform,
             createdAt: new Date().toISOString(),
           },
           token: plainToken,
-          message: 'Token API berhasil dibuat. Salin token dan tempelkan ke EA MT5 Anda.',
+          message: `Token API berhasil dibuat. Salin token dan tempelkan ke EA ${platform.toUpperCase()} Anda.`,
         },
         { status: 201 }
       )
@@ -193,7 +210,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'MT5_CONNECTION_LIMIT_REACHED',
-          message: `Batas maksimal ${MAX_MT5_CONNECTIONS_PER_USER} koneksi MT5 telah tercapai. Hapus salah satu koneksi untuk membuat yang baru.`,
+          message: `Batas maksimal ${MAX_MT5_CONNECTIONS_PER_USER} koneksi trading telah tercapai. Hapus salah satu koneksi untuk membuat yang baru.`,
         },
         { status: 400 }
       )
@@ -204,33 +221,47 @@ export async function POST(request: NextRequest) {
       api_token_hash: tokenHash,
       status: 'pending',
       account_type: accountType,
+      platform,
     }
 
     let { data: newConn, error: insertError } = await supabase
       .from('mt5_connections')
       .insert(insertPayload)
-      .select('id, status, created_at, account_type')
+      .select('id, status, created_at, account_type, platform')
       .single()
 
-    // Fallback if account_type column does not exist in DB yet
+    // Fallback if platform or account_type column does not exist in DB yet
     if (insertError) {
-      console.warn('POST /api/mt5/connections insert error, retrying fallback:', insertError.message)
-      delete insertPayload.account_type
+      console.warn('POST /api/mt5/connections insert error, retrying fallback without platform:', insertError.message)
+      delete insertPayload.platform
       const retry = await supabase
         .from('mt5_connections')
         .insert(insertPayload)
-        .select('id, status, created_at')
+        .select('id, status, created_at, account_type')
         .single()
 
       if (!retry.error) {
-        newConn = { ...retry.data, account_type: accountType }
+        newConn = { ...retry.data, platform }
         insertError = null
+      } else {
+        // Fallback without account_type as well
+        delete insertPayload.account_type
+        const retryLegacy = await supabase
+          .from('mt5_connections')
+          .insert(insertPayload)
+          .select('id, status, created_at')
+          .single()
+
+        if (!retryLegacy.error) {
+          newConn = { ...retryLegacy.data, account_type: accountType, platform }
+          insertError = null
+        }
       }
     }
 
     if (insertError || !newConn) {
       return NextResponse.json(
-        { error: 'DATABASE_ERROR', message: insertError?.message || 'Gagal menyimpan koneksi MT5' },
+        { error: 'DATABASE_ERROR', message: insertError?.message || 'Gagal menyimpan koneksi trading' },
         { status: 500 }
       )
     }
@@ -242,10 +273,11 @@ export async function POST(request: NextRequest) {
           status: newConn.status,
           accountType: newConn.account_type || accountType,
           account_type: newConn.account_type || accountType,
+          platform: newConn.platform || platform,
           createdAt: newConn.created_at,
         },
         token: plainToken,
-        message: 'Token API berhasil dibuat. Salin token dan tempelkan ke EA MT5 Anda.',
+        message: `Token API berhasil dibuat. Salin token dan tempelkan ke EA ${(newConn.platform || platform).toUpperCase()} Anda.`,
       },
       { status: 201 }
     )
