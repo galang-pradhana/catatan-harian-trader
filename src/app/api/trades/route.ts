@@ -138,6 +138,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const {
+      connectionId: reqConnId,
+      connection_id: reqConnId2,
+      mt5_connection_id: reqConnId3,
       symbol,
       direction,
       volume,
@@ -160,31 +163,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get or create an mt5_connection_id for the user
-    let connectionId: string | null = null
-    const { data: connections } = await supabase
-      .from('mt5_connections')
-      .select('id')
-      .eq('user_id', user.id)
-      .limit(1)
-
-    if (connections && connections.length > 0) {
-      connectionId = connections[0].id
-    } else {
-      // Auto-create a default manual connection for the user
-      const { data: newConn } = await supabase
+    // Get or use provided mt5_connection_id for the user
+    let connectionId: string | null = reqConnId || reqConnId2 || reqConnId3 || null
+    if (!connectionId) {
+      const { data: connections } = await supabase
         .from('mt5_connections')
-        .insert({
-          user_id: user.id,
-          broker_name: 'Manual Entry Journal',
-          account_number: 'MANUAL',
-          api_token_hash: `manual_hash_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          status: 'connected',
-        })
         .select('id')
-        .single()
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
 
-      if (newConn) connectionId = newConn.id
+      if (connections && connections.length > 0) {
+        connectionId = connections[0].id
+      } else {
+        // Auto-create a default manual connection for the user
+        const { data: newConn } = await supabase
+          .from('mt5_connections')
+          .insert({
+            user_id: user.id,
+            broker_name: 'Jurnal Trading Manual',
+            status: 'connected',
+            platform: 'manual',
+            api_token_hash: `manual_${user.id}_${Date.now()}`,
+          })
+          .select('id')
+          .single()
+
+        if (newConn) connectionId = newConn.id
+      }
     }
 
     if (!connectionId) {

@@ -94,18 +94,29 @@ export default function CompoundingDetailPage() {
   const [editMt5Source, setEditMt5Source] = useState<'mt5' | 'manual'>('manual')
   const [editMt5ConnectionId, setEditMt5ConnectionId] = useState<string>('')
 
+interface KellyMetrics {
+  totalClosedTrades: number
+  winRatePct: number
+  actualRR: number
+  fullKellyPct: number
+  halfKellyPct: number
+  quarterKellyPct: number
+  isSmallSample: boolean
+}
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['compounding-plan-detail', planId],
     queryFn: async () => {
       const res = await fetch(`/api/compounding/${planId}`)
       if (!res.ok) throw new Error('Gagal memuat detail plan compounding')
-      return res.json() as Promise<{ success: boolean; plan: PlanDetail; levels: LevelRow[] }>
+      return res.json() as Promise<{ success: boolean; plan: PlanDetail; levels: LevelRow[]; kellyMetrics?: KellyMetrics }>
     },
     staleTime: 15_000,
   })
 
   const plan = data?.plan
   const levels = data?.levels || []
+  const kellyMetrics = data?.kellyMetrics
 
   // Fetch data akun MT5 yang terkoneksi (untuk dropdown edit plan)
   const { data: mt5Data } = useQuery({
@@ -388,6 +399,73 @@ export default function CompoundingDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* KELLY CRITERION REFERENCE PANEL (F-35) */}
+      {kellyMetrics && (
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 font-bold text-xs">
+                K%
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-foreground flex items-center gap-2">
+                  <span>Kelly Criterion (Referensi Risiko Edukatif)</span>
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Dihitung dari histori aktual: Win Rate {kellyMetrics.winRatePct}% | R:R {kellyMetrics.actualRR} ({kellyMetrics.totalClosedTrades} trade closed)
+                </p>
+              </div>
+            </div>
+
+            {kellyMetrics.isSmallSample && (
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-500 border border-amber-500/30 flex items-center gap-1 self-start sm:self-auto">
+                ⚠️ Sampel Kecil ({kellyMetrics.totalClosedTrades} trade) — Hasil Kurang Mewakili
+              </span>
+            )}
+          </div>
+
+          {/* 4 Cards Comparison */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-card border-2 border-primary/60 rounded-xl p-3.5 space-y-1 relative overflow-hidden shadow-sm">
+              <span className="text-[10px] font-extrabold text-primary uppercase block">Risk Plan Anda Saat Ini</span>
+              <span className="text-xl font-black font-mono text-primary block">
+                {plan.riskPlanPercent}%
+              </span>
+              <span className="text-[10px] text-muted-foreground block font-medium">Diatur pada compounding plan</span>
+            </div>
+
+            <div className="bg-muted/30 border border-border rounded-xl p-3.5 space-y-1">
+              <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase block">Quarter-Kelly (Konservatif)</span>
+              <span className="text-xl font-black font-mono text-emerald-600 dark:text-emerald-400 block">
+                {kellyMetrics.quarterKellyPct}%
+              </span>
+              <span className="text-[10px] text-muted-foreground block font-medium">25% dari Full Kelly</span>
+            </div>
+
+            <div className="bg-muted/30 border border-border rounded-xl p-3.5 space-y-1">
+              <span className="text-[10px] font-extrabold text-purple-600 dark:text-purple-400 uppercase block">Half-Kelly (Umum Praktisi)</span>
+              <span className="text-xl font-black font-mono text-purple-600 dark:text-purple-400 block">
+                {kellyMetrics.halfKellyPct}%
+              </span>
+              <span className="text-[10px] text-muted-foreground block font-medium">50% dari Full Kelly</span>
+            </div>
+
+            <div className="bg-muted/30 border border-border rounded-xl p-3.5 space-y-1">
+              <span className="text-[10px] font-extrabold text-muted-foreground uppercase block">Full Kelly (Teori)</span>
+              <span className="text-xl font-black font-mono text-muted-foreground block">
+                {kellyMetrics.fullKellyPct}%
+              </span>
+              <span className="text-[10px] text-muted-foreground block font-medium">Teori matematis murni</span>
+            </div>
+          </div>
+
+          {/* Mandatory Educational Disclaimer */}
+          <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs text-foreground leading-relaxed font-medium">
+            💡 <strong>Teks Edukatif:</strong> Kelly Criterion adalah referensi teoritis berdasarkan histori — bukan rekomendasi mutlak. Sebagian besar praktisi menggunakan <strong>Half atau Quarter-Kelly</strong>, bukan Kelly penuh, karena estimasi win rate/RR bisa berubah seiring waktu.
+          </div>
+        </div>
+      )}
 
       {/* REQUIREMENT 2: SECTION "CATATAN & ATURAN TRADING" */}
       <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-3">

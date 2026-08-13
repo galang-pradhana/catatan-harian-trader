@@ -24,8 +24,9 @@ import { SqnTrendChart } from '@/components/shared/sqn-trend-chart'
 import { MfeHistogramChart } from '@/components/shared/mfe-histogram-chart'
 import { PairRankingTable } from '@/components/shared/pair-ranking-table'
 import { StrategyRankingTable } from '@/components/shared/strategy-ranking-table'
+import { PipsAnalyticsTab } from '@/components/shared/pips-analytics-tab'
 
-type ActiveTab = 'overview' | 'sqn_mfe' | 'pair' | 'strategy'
+type ActiveTab = 'overview' | 'sqn_mfe' | 'pair' | 'strategy' | 'pips'
 type TimeframeOption = 'monthly' | 'quarterly' | 'yearly' | 'all'
 type SqnGranularity = 'weekly' | 'monthly'
 
@@ -128,6 +129,7 @@ export default function AnalysisPage() {
         {([
           { id: 'overview',  label: 'Overview' },
           { id: 'sqn_mfe',   label: 'SQN & MFE Analytics' },
+          { id: 'pips',      label: '📊 Analitik Pips' },
           { id: 'pair',      label: 'Pair / Simbol' },
           { id: 'strategy',  label: 'Strategi' },
         ] as { id: ActiveTab; label: string }[]).map(tab => (
@@ -404,6 +406,11 @@ export default function AnalysisPage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* ── TAB: ANALITIK PIPS (F-38) ─────────────────────────────────────── */}
+          {activeTab === 'pips' && (
+            <PipsAnalyticsTab />
           )}
 
           {/* ── TAB: PAIR / SIMBOL ───────────────────────────────────────────── */}

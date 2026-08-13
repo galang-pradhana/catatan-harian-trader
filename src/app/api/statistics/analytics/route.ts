@@ -83,6 +83,11 @@ export async function GET(request: NextRequest) {
     let currentWinStreak = 0
     let currentLossStreak = 0
 
+    let currentWinStreakPnl = 0
+    let currentLossStreakPnl = 0
+    let maxWinStreakPnl = 0
+    let maxLossStreakPnl = 0
+
     let bestTradePnl = -Infinity
     let worstTradePnl = Infinity
 
@@ -97,14 +102,22 @@ export async function GET(request: NextRequest) {
         grossProfit += pnl
         winCount++
         currentWinStreak++
+        currentWinStreakPnl += pnl
         currentLossStreak = 0
+        currentLossStreakPnl = 0
+
         if (currentWinStreak > maxWinStreak) maxWinStreak = currentWinStreak
+        if (currentWinStreakPnl > maxWinStreakPnl) maxWinStreakPnl = currentWinStreakPnl
       } else if (pnl < 0) {
         grossLoss += Math.abs(pnl)
         lossCount++
         currentLossStreak++
+        currentLossStreakPnl += Math.abs(pnl)
         currentWinStreak = 0
+        currentWinStreakPnl = 0
+
         if (currentLossStreak > maxLossStreak) maxLossStreak = currentLossStreak
+        if (currentLossStreakPnl > maxLossStreakPnl) maxLossStreakPnl = currentLossStreakPnl
       }
     })
 
@@ -114,7 +127,62 @@ export async function GET(request: NextRequest) {
     const avgWin = winCount > 0 ? grossProfit / winCount : 0
     const avgLoss = lossCount > 0 ? grossLoss / lossCount : 0
 
-    // 3. Equity Curve & Drawdown Series
+    // 3. Drawdown Metrics from REAL balance_snapshots (F-33 Source of Truth)
+    let connIds = (connRows ?? []).map((c) => c.id)
+    if (connectionId) {
+      connIds = connIds.filter((id) => id === connectionId)
+    }
+
+    let snapshotsData: any[] = []
+    if (connIds.length > 0) {
+      const { data: snaps } = await supabase
+        .from('balance_snapshots')
+        .select('balance, recorded_at')
+        .in('mt5_connection_id', connIds)
+        .order('recorded_at', { ascending: true })
+
+      snapshotsData = snaps || []
+    }
+
+    let drawdownMetrics = {
+      hasEnoughData: false,
+      snapshotCount: snapshotsData.length,
+      absoluteDrawdown: 0,
+      maxDrawdownDollar: 0,
+      maxDrawdownPct: 0,
+    }
+
+    if (snapshotsData.length >= 2) {
+      const initialModal = Number(snapshotsData[0].balance)
+      let lowestBalance = initialModal
+      let peakBalance = Number(snapshotsData[0].balance)
+      let maxDdDollar = 0
+      let maxDdPct = 0
+
+      snapshotsData.forEach((s: any) => {
+        const bal = Number(s.balance)
+        if (bal < lowestBalance) lowestBalance = bal
+        if (bal > peakBalance) peakBalance = bal
+
+        const ddDollar = peakBalance > bal ? peakBalance - bal : 0
+        const ddPct = peakBalance > 0 ? (ddDollar / peakBalance) * 100 : 0
+
+        if (ddDollar > maxDdDollar) maxDdDollar = ddDollar
+        if (ddPct > maxDdPct) maxDdPct = ddPct
+      })
+
+      const absDd = Math.max(0, initialModal - lowestBalance)
+
+      drawdownMetrics = {
+        hasEnoughData: true,
+        snapshotCount: snapshotsData.length,
+        absoluteDrawdown: Math.round(absDd * 100) / 100,
+        maxDrawdownDollar: Math.round(maxDdDollar * 100) / 100,
+        maxDrawdownPct: Math.round(maxDdPct * 10) / 10,
+      }
+    }
+
+    // Equity Curve for chart visualization
     let cumulativePnl = 0
     let peakEquity = 0
     let maxDrawdownDollar = 0
@@ -329,11 +397,14 @@ export async function GET(request: NextRequest) {
         avgLoss: Math.round(avgLoss * 100) / 100,
         maxWinStreak,
         maxLossStreak,
+        maxWinStreakPnl: Math.round(maxWinStreakPnl * 100) / 100,
+        maxLossStreakPnl: Math.round(maxLossStreakPnl * 100) / 100,
         bestTradePnl: bestTradePnl !== -Infinity ? Math.round(bestTradePnl * 100) / 100 : 0,
         worstTradePnl: worstTradePnl !== Infinity ? Math.round(worstTradePnl * 100) / 100 : 0,
         maxDrawdownDollar: Math.round(maxDrawdownDollar * 100) / 100,
         maxDrawdownPct: Math.round(maxDrawdownPct * 10) / 10,
       },
+      drawdownMetrics,
       equityCurve,
       timeAnalysis: {
         days: daysPerformance,

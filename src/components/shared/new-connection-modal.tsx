@@ -28,6 +28,8 @@ export function NewConnectionModal({
   const [isLoadingToken, setIsLoadingToken] = useState(false)
   const [platform, setPlatform] = useState<Platform>('mt5')
   const [accountType, setAccountType] = useState<AccountType>('standard')
+  const [manualName, setManualName] = useState('')
+  const [initialBalance, setInitialBalance] = useState('10000')
 
   // Reset semua state saat modal ditutup
   const handleClose = () => {
@@ -37,6 +39,8 @@ export function NewConnectionModal({
     setIsLoadingToken(false)
     setPlatform('mt5')
     setAccountType('standard')
+    setManualName('')
+    setInitialBalance('10000')
     onClose()
   }
 
@@ -44,17 +48,29 @@ export function NewConnectionModal({
   const handleConfirmConfig = async () => {
     setIsLoadingToken(true)
     try {
+      const payload: any = { accountType, platform }
+      if (platform === 'manual') {
+        payload.brokerName = manualName.trim() || 'Akun Manual'
+        payload.initialBalance = Number(initialBalance) || 0
+      }
+
       const res = await fetch('/api/mt5/connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountType, platform }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
-      if (res.ok && data.token) {
-        setToken(data.token)
-        setStep('token')
+      if (res.ok) {
+        if (platform === 'manual') {
+          toast(`✅ Akun manual "${manualName.trim() || 'Akun Manual'}" berhasil dibuat!`, 'success')
+          onConnectionCreated()
+          handleClose()
+        } else if (data.token) {
+          setToken(data.token)
+          setStep('token')
+        }
       } else {
-        toast(data.message || 'Gagal membuat token API baru', 'error')
+        toast(data.message || 'Gagal membuat koneksi baru', 'error')
       }
     } catch {
       toast('Terjadi kesalahan saat menghubungi server', 'error')
@@ -97,6 +113,7 @@ export function NewConnectionModal({
   }
 
   const isMT4 = platform === 'mt4'
+  const isManual = platform === 'manual'
   const targetExtension = isMT4 ? '.mq4' : '.mq5'
   const targetFolder = isMT4 ? 'MQL4/Experts/' : 'MQL5/Experts/'
 
@@ -107,35 +124,37 @@ export function NewConnectionModal({
       title="Hubungkan Akun Trading Baru"
       description={
         step === 'configure'
-          ? 'Pilih platform MetaTrader dan tipe akun Anda terlebih dahulu.'
+          ? (isManual ? 'Setup rincian akun manual Anda di bawah ini.' : 'Pilih platform MetaTrader dan tipe akun Anda terlebih dahulu.')
           : 'Salin token di bawah, lalu download dan pasang EA di terminal Anda.'
       }
       className="max-w-xl"
     >
       {/* Step Indicator */}
-      <div className="flex items-center gap-2 my-3 px-0.5">
-        <div className={cn(
-          'flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all',
-          step === 'configure'
-            ? 'bg-primary text-primary-foreground border-primary'
-            : 'bg-muted/40 text-muted-foreground border-border line-through opacity-60'
-        )}>
-          <span>1</span>
-          <span>Konfigurasi</span>
+      {!isManual && (
+        <div className="flex items-center gap-2 my-3 px-0.5">
+          <div className={cn(
+            'flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all',
+            step === 'configure'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-muted/40 text-muted-foreground border-border line-through opacity-60'
+          )}>
+            <span>1</span>
+            <span>Konfigurasi</span>
+          </div>
+          <div className="h-px flex-1 bg-border" />
+          <div className={cn(
+            'flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all',
+            step === 'token'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-muted/40 text-muted-foreground border-border opacity-60'
+          )}>
+            <span>2</span>
+            <span>Token &amp; Pasang EA</span>
+          </div>
         </div>
-        <div className="h-px flex-1 bg-border" />
-        <div className={cn(
-          'flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all',
-          step === 'token'
-            ? 'bg-primary text-primary-foreground border-primary'
-            : 'bg-muted/40 text-muted-foreground border-border opacity-60'
-        )}>
-          <span>2</span>
-          <span>Token &amp; Pasang EA</span>
-        </div>
-      </div>
+      )}
 
-      {/* ─── STEP 1: Configure Platform & Account Type ─── */}
+      {/* ─── STEP 1: Configure Platform & Account Details ─── */}
       {step === 'configure' && (
         <div className="space-y-4 my-2 max-h-[60vh] overflow-y-auto pr-1">
           {/* Platform Selection */}
@@ -143,26 +162,28 @@ export function NewConnectionModal({
             <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
               <Monitor className="h-4 w-4 text-primary" /> Pilih Platform Trading Anda:
             </label>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setPlatform('mt4')}
                 className={cn(
-                  'py-2.5 px-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2.5',
+                  'py-2.5 px-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1',
                   platform === 'mt4'
                     ? 'bg-blue-500/15 border-blue-500 text-foreground font-bold shadow-xs'
                     : 'bg-muted/30 border-border/70 text-muted-foreground hover:text-foreground'
                 )}
               >
-                <div className={cn(
-                  'h-7 w-7 rounded-lg font-mono text-xs font-black flex items-center justify-center shrink-0',
-                  platform === 'mt4' ? 'bg-blue-500 text-white' : 'bg-muted text-muted-foreground'
-                )}>
-                  MT4
+                <div className="flex items-center justify-between">
+                  <span className={cn(
+                    'px-1.5 py-0.5 rounded font-mono text-[10px] font-black',
+                    platform === 'mt4' ? 'bg-blue-500 text-white' : 'bg-muted text-muted-foreground'
+                  )}>
+                    MT4
+                  </span>
                 </div>
-                <div className="min-w-0">
+                <div>
                   <span className="text-xs font-extrabold block truncate">MetaTrader 4</span>
-                  <span className="text-[10px] text-muted-foreground block truncate">MQL4 Read-Only</span>
+                  <span className="text-[9px] text-muted-foreground block truncate">MQL4 EA Sync</span>
                 </div>
               </button>
 
@@ -170,25 +191,84 @@ export function NewConnectionModal({
                 type="button"
                 onClick={() => setPlatform('mt5')}
                 className={cn(
-                  'py-2.5 px-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2.5',
+                  'py-2.5 px-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1',
                   platform === 'mt5'
                     ? 'bg-primary/15 border-primary text-foreground font-bold shadow-xs'
                     : 'bg-muted/30 border-border/70 text-muted-foreground hover:text-foreground'
                 )}
               >
-                <div className={cn(
-                  'h-7 w-7 rounded-lg font-mono text-xs font-black flex items-center justify-center shrink-0',
-                  platform === 'mt5' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                )}>
-                  MT5
+                <div className="flex items-center justify-between">
+                  <span className={cn(
+                    'px-1.5 py-0.5 rounded font-mono text-[10px] font-black',
+                    platform === 'mt5' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  )}>
+                    MT5
+                  </span>
                 </div>
-                <div className="min-w-0">
+                <div>
                   <span className="text-xs font-extrabold block truncate">MetaTrader 5</span>
-                  <span className="text-[10px] text-muted-foreground block truncate">MQL5 Read-Only</span>
+                  <span className="text-[9px] text-muted-foreground block truncate">MQL5 EA Sync</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPlatform('manual')}
+                className={cn(
+                  'py-2.5 px-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1',
+                  platform === 'manual'
+                    ? 'bg-purple-500/15 border-purple-500 text-foreground font-bold shadow-xs'
+                    : 'bg-muted/30 border-border/70 text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={cn(
+                    'px-1.5 py-0.5 rounded font-mono text-[10px] font-black',
+                    platform === 'manual' ? 'bg-purple-500 text-white' : 'bg-muted text-muted-foreground'
+                  )}>
+                    MANUAL
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs font-extrabold block truncate">Manual Entry</span>
+                  <span className="text-[9px] text-muted-foreground block truncate">Tanpa EA / Token</span>
                 </div>
               </button>
             </div>
           </div>
+
+          {/* Setup Field Khusus Manual */}
+          {isManual && (
+            <div className="bg-card border border-purple-500/30 p-3.5 rounded-xl space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground">
+                  Nama Akun Trading Manual:
+                </label>
+                <input
+                  type="text"
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder="Contoh: Demo Prop Firm X / Akun Broker Y"
+                  className="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground">
+                  Balance / Modal Awal ({accountType === 'cent' ? 'USC' : 'USD'}):
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={initialBalance}
+                  onChange={(e) => setInitialBalance(e.target.value)}
+                  placeholder="10000"
+                  className="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Account Type Selector */}
           <div className="bg-card border border-border p-3.5 rounded-xl space-y-2">
@@ -228,11 +308,13 @@ export function NewConnectionModal({
             )}
           </div>
 
-          {/* Security Note */}
+          {/* Note Info */}
           <div className="bg-muted/40 border border-border p-3 rounded-xl flex items-start gap-2 text-[11px] text-muted-foreground">
             <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <span>
-              Token API baru akan dibuat setelah Anda mengklik &quot;Buat Token &amp; Lanjutkan&quot;. Menutup halaman ini sebelum mengklik tombol tersebut <strong>tidak akan membuat koneksi baru</strong>.
+              {isManual
+                ? 'Akun manual langsung terhubung begitu dibuat. Anda dapat menambahkan trade dan memperbarui balance kapan saja.'
+                : 'Token API baru akan dibuat setelah Anda mengklik "Buat Token & Lanjutkan".'}
             </span>
           </div>
         </div>
@@ -322,7 +404,7 @@ export function NewConnectionModal({
             isLoading={isLoadingToken}
             disabled={isLoadingToken}
           >
-            Buat Token &amp; Lanjutkan
+            {isManual ? 'Buat Akun Manual' : 'Buat Token & Lanjutkan'}
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         )}

@@ -47,7 +47,7 @@ const journalNavItems = [
 ]
 
 const systemNavItems = [
-  { href: '/mt5',         label: 'Import / MT4 & MT5', icon: Link2 },
+  { href: '/mt5',         label: 'Koneksi Trading', icon: Link2 },
   { href: '/settings',    label: 'Pengaturan',        icon: Settings },
 ]
 

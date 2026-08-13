@@ -3,18 +3,19 @@ import { z } from 'zod'
 import { createClient } from '@/services/supabase/server'
 
 const JournalSchema = z.object({
-  sl:              z.any().optional(),
-  tp:              z.any().optional(),
-  reason_entry:    z.string().optional().nullable(),
-  mood:            z.string().optional().nullable(),
-  discipline:      z.any().optional().nullable(),
-  lesson_learned:  z.string().optional().nullable(),
-  risk_percent:    z.any().optional().nullable(),
-  planned_rr:      z.any().optional().nullable(),
-  actual_rr:       z.any().optional().nullable(),
-  self_grade:      z.any().optional().nullable(),
-  strategy_ids:    z.array(z.string()).optional(),
-  mistake_tag_ids: z.array(z.string()).optional(),
+  sl:               z.any().optional(),
+  tp:               z.any().optional(),
+  reason_entry:     z.string().optional().nullable(),
+  mood:             z.string().optional().nullable(),
+  discipline:       z.any().optional().nullable(),
+  lesson_learned:   z.string().optional().nullable(),
+  risk_percent:     z.any().optional().nullable(),
+  planned_rr:       z.any().optional().nullable(),
+  actual_rr:        z.any().optional().nullable(),
+  self_grade:       z.any().optional().nullable(),
+  market_condition: z.enum(['ranging', 'trending']).optional().nullable(),
+  strategy_ids:     z.array(z.string()).optional(),
+  mistake_tag_ids:  z.array(z.string()).optional(),
 })
 
 // PUT /api/trades/[id]/journal — Upsert journal for a trade

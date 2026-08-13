@@ -41,7 +41,7 @@ export const navItems = [
   { href: '/psychology',  label: 'Psikologi Trading', icon: Brain },
   { href: '/strategies',  label: 'Strategi',          icon: Target },
   { href: '/notes',       label: 'Catatan',           icon: FileText },
-  { href: '/mt5',         label: 'Import / MT4 & MT5', icon: Link2 },
+  { href: '/mt5',         label: 'Koneksi Trading', icon: Link2 },
   { href: '/settings',    label: 'Pengaturan',        icon: Settings },
 ]
 

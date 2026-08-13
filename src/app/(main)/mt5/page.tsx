@@ -6,6 +6,8 @@ import { MT5Connection } from '@/types/mt5'
 import { MAX_MT5_CONNECTIONS_PER_USER } from '@/constants/mt5'
 import { ConnectionCard } from '@/components/shared/connection-card'
 import { NewConnectionModal } from '@/components/shared/new-connection-modal'
+import { UpdateBalanceModal } from '@/components/shared/update-balance-modal'
+import { ManualTradeModal } from '@/components/shared/manual-trade-modal'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/shared/toast'
 
@@ -13,13 +15,16 @@ export default function MT5Page() {
   const [connections, setConnections] = useState<MT5Connection[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [updateBalanceConn, setUpdateBalanceConn] = useState<MT5Connection | null>(null)
+  const [addTradeConnId, setAddTradeConnId] = useState<string | null>(null)
+  const [isAddTradeOpen, setIsAddTradeOpen] = useState(false)
 
   const fetchConnections = useCallback(async () => {
     try {
       setIsLoading(true)
       const res = await fetch('/api/mt5/connections')
       if (!res.ok) {
-        throw new Error('Gagal mengambil daftar koneksi MT5')
+        throw new Error('Gagal mengambil daftar koneksi')
       }
       const data = await res.json()
       setConnections(data.connections || [])
@@ -51,11 +56,11 @@ export default function MT5Page() {
       })
       if (res.ok) {
         setConnections((prev) => prev.filter((c) => c.id !== id))
-        toast('Koneksi MT5 berhasil dihapus', 'success')
+        toast('Koneksi berhasil dihapus', 'success')
       } else {
         toast('Gagal menghapus koneksi dari server', 'error')
       }
-    } catch (err: any) {
+    } catch {
       toast('Gagal memproses penghapusan koneksi', 'error')
     }
   }
@@ -71,13 +76,13 @@ export default function MT5Page() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-foreground">Hubungkan MT4 / MT5</h1>
+            <h1 className="text-2xl font-bold text-foreground">Koneksi Trading (MT4 / MT5 / Manual)</h1>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-secondary font-semibold text-primary border border-border">
               {connections.length} / {MAX_MT5_CONNECTIONS_PER_USER} Akun
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Hubungkan MetaTrader 4 atau MetaTrader 5 via Expert Advisor (EA) tanpa memasukkan kredensial broker.
+            Hubungkan MetaTrader 4, MetaTrader 5 via Expert Advisor (EA), atau kelola Akun Trading Manual Anda.
           </p>
         </div>
 
@@ -128,6 +133,11 @@ export default function MT5Page() {
               connection={conn}
               onSync={handleSync}
               onDelete={handleDelete}
+              onUpdateBalance={(c) => setUpdateBalanceConn(c)}
+              onAddTrade={(c) => {
+                setAddTradeConnId(c.id)
+                setIsAddTradeOpen(true)
+              }}
             />
           ))}
         </div>
@@ -142,7 +152,7 @@ export default function MT5Page() {
               Belum Ada Koneksi Trading
             </h3>
             <p className="text-xs text-muted-foreground">
-              Hubungkan terminal MetaTrader 4 atau 5 Anda untuk mulai membaca closed trade history & posisi terbuka secara otomatis.
+              Hubungkan MetaTrader 4 / 5 atau buat Akun Manual untuk mencatat transaksi trading dan perkembangan modal Anda.
             </p>
           </div>
           <Button variant="primary" onClick={() => setIsModalOpen(true)}>
@@ -157,6 +167,31 @@ export default function MT5Page() {
         onClose={() => setIsModalOpen(false)}
         onConnectionCreated={handleConnectionCreated}
       />
+
+      {/* Update Balance Modal for Manual Accounts */}
+      {updateBalanceConn && (
+        <UpdateBalanceModal
+          isOpen={Boolean(updateBalanceConn)}
+          onClose={() => setUpdateBalanceConn(null)}
+          connectionId={updateBalanceConn.id}
+          accountName={updateBalanceConn.brokerName || updateBalanceConn.broker_name || 'Akun Manual'}
+          currentBalance={updateBalanceConn.currentBalance || updateBalanceConn.current_balance || 0}
+          accountType={updateBalanceConn.accountType || updateBalanceConn.account_type || 'standard'}
+          onBalanceUpdated={() => fetchConnections()}
+        />
+      )}
+
+      {/* Manual Trade Entry Modal */}
+      {isAddTradeOpen && (
+        <ManualTradeModal
+          isOpen={isAddTradeOpen}
+          onClose={() => {
+            setIsAddTradeOpen(false)
+            setAddTradeConnId(null)
+          }}
+          connectionId={addTradeConnId || undefined}
+        />
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { RefreshCw, Trash2, ShieldCheck, Server, Coins, Check } from 'lucide-react'
+import { RefreshCw, Trash2, ShieldCheck, Server, Coins, Check, Pencil, Plus } from 'lucide-react'
 import { MT5Connection, AccountType } from '@/types/mt5'
 import { ConnectionStatusBadge } from '@/components/shared/connection-status-badge'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,8 @@ export interface ConnectionCardProps {
   onDelete: (id: string) => void
   onSync: (id: string) => void
   onAccountTypeChange?: (id: string, newType: AccountType) => void
+  onUpdateBalance?: (connection: MT5Connection) => void
+  onAddTrade?: (connection: MT5Connection) => void
 }
 
 export function ConnectionCard({
@@ -22,6 +24,8 @@ export function ConnectionCard({
   onDelete,
   onSync,
   onAccountTypeChange,
+  onUpdateBalance,
+  onAddTrade,
 }: ConnectionCardProps) {
   const [isSyncing, setIsSyncing] = useState(false)
   const [isUpdatingType, setIsUpdatingType] = useState(false)
@@ -29,6 +33,8 @@ export function ConnectionCard({
   const [accountType, setAccountType] = useState<AccountType>(
     connection.accountType || connection.account_type || 'standard'
   )
+
+  const isManual = connection.platform === 'manual'
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -46,7 +52,7 @@ export function ConnectionCard({
     setTimeout(() => {
       setIsSyncing(false)
       onSync(connection.id)
-      toast(`Tampilan disinkronkan untuk akun MT5 ${connection.accountNumber || ''}`, 'success')
+      toast(`Tampilan disinkronkan untuk akun ${connection.accountNumber || connection.brokerName || ''}`, 'success')
     }, 1000)
   }
 
@@ -88,7 +94,7 @@ export function ConnectionCard({
     }
     setIsDeleteModalOpen(false)
     onDelete(connection.id)
-    toast('Koneksi MT5 telah dihapus', 'error')
+    toast('Koneksi akun telah dihapus', 'error')
   }
 
   const rawBalance = connection.currentBalance || 0
@@ -101,25 +107,34 @@ export function ConnectionCard({
         {/* Card Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-primary shrink-0">
-              <Server className="h-5 w-5" />
+            <div className={cn(
+              "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
+              isManual ? "bg-purple-500/15 text-purple-400" : "bg-secondary text-primary"
+            )}>
+              {isManual ? <Pencil className="h-5 w-5" /> : <Server className="h-5 w-5" />}
             </div>
             <div className="min-w-0 flex-1">
               <h3 className="font-extrabold text-foreground text-base tracking-tight truncate">
-                {connection.accountNumber ? `#${connection.accountNumber}` : 'Menunggu Akun'}
+                {isManual
+                  ? (connection.brokerName || 'Akun Manual')
+                  : (connection.accountNumber ? `#${connection.accountNumber}` : 'Menunggu Akun')}
               </h3>
               <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                 <span className={cn(
                   'text-[9px] font-mono font-black px-1.5 py-0.5 rounded-md border shrink-0',
                   (connection.platform === 'mt4')
                     ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                    : isManual
+                    ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
                     : 'bg-primary/15 text-primary border-primary/30'
                 )}>
                   {(connection.platform || 'mt5').toUpperCase()}
                 </span>
-                <p className="text-xs text-muted-foreground font-medium truncate">
-                  {connection.brokerName || 'Broker Belum Terdeteksi'}
-                </p>
+                {!isManual && (
+                  <p className="text-xs text-muted-foreground font-medium truncate">
+                    {connection.brokerName || 'Broker Belum Terdeteksi'}
+                  </p>
+                )}
                 {isCent && (
                   <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
                     Cent (USC)
@@ -129,35 +144,39 @@ export function ConnectionCard({
             </div>
           </div>
 
-          <ConnectionStatusBadge
-            status={connection.status}
-            errorMessage={connection.lastError}
-            lastSyncedAt={connection.lastSyncedAt}
-          />
+          {isManual ? (
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30 shrink-0">
+              Manual Active
+            </span>
+          ) : (
+            <ConnectionStatusBadge
+              status={connection.status}
+              errorMessage={connection.lastError}
+              lastSyncedAt={connection.lastSyncedAt}
+            />
+          )}
         </div>
 
         {/* Saldo Realtime & Conversion Badge */}
-        {rawBalance > 0 && (
-          <div className="bg-muted/40 border border-border/60 rounded-xl p-3 text-xs space-y-1">
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground font-semibold text-[11px] uppercase tracking-wider">
-                Saldo Realtime:
-              </span>
-              <span className="font-mono font-extrabold text-sm text-emerald-400">
-                {isCent ? `${rawBalance.toLocaleString('en-US')} USC` : `$${rawBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+        <div className="bg-muted/40 border border-border/60 rounded-xl p-3 text-xs space-y-1">
+          <div className="flex justify-between items-center">
+            <span className="text-muted-foreground font-semibold text-[11px] uppercase tracking-wider">
+              {isManual ? 'Saldo Terkini:' : 'Saldo Realtime:'}
+            </span>
+            <span className="font-mono font-extrabold text-sm text-emerald-400">
+              {isCent ? `${rawBalance.toLocaleString('en-US')} USC` : `$${rawBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+            </span>
+          </div>
+
+          {isCent && (
+            <div className="flex justify-between items-center pt-1 border-t border-border/40 text-[11px]">
+              <span className="text-muted-foreground">Konversi Riil USD ($):</span>
+              <span className="font-mono font-bold text-emerald-400">
+                ${converted.usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
               </span>
             </div>
-
-            {isCent && (
-              <div className="flex justify-between items-center pt-1 border-t border-border/40 text-[11px]">
-                <span className="text-muted-foreground">Konversi Riil USD ($):</span>
-                <span className="font-mono font-bold text-emerald-400">
-                  ${converted.usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Pemilih Tipe Akun (Standar USD vs Cent USC) */}
         <div className="space-y-1.5">
@@ -206,9 +225,17 @@ export function ConnectionCard({
         {/* Info detail */}
         <div className="bg-muted/30 border border-border/50 rounded-xl p-3 text-xs space-y-1.5">
           <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">Protokol Keamanan:</span>
+            <span className="text-muted-foreground">Tipe Koneksi:</span>
             <span className="text-foreground font-semibold flex items-center gap-1 text-[11px]">
-              <ShieldCheck className="h-3.5 w-3.5 text-profit" /> Token SHA-256
+              {isManual ? (
+                <>
+                  <Pencil className="h-3.5 w-3.5 text-purple-400" /> Manual Entry
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="h-3.5 w-3.5 text-profit" /> Token SHA-256
+                </>
+              )}
             </span>
           </div>
           <div className="flex justify-between items-center">
@@ -225,17 +252,41 @@ export function ConnectionCard({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 pt-2 border-t border-border/60">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="flex-1 text-xs"
-            onClick={handleSyncClick}
-            isLoading={isSyncing}
-            disabled={connection.status === 'pending'}
-          >
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-            Sync Sekarang
-          </Button>
+          {isManual ? (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="flex-1 text-xs font-bold"
+                onClick={() => onUpdateBalance?.(connection)}
+              >
+                <Pencil className="h-3.5 w-3.5 mr-1 shrink-0" />
+                Update Balance
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs font-bold text-primary border-primary/40 hover:bg-primary/10"
+                onClick={() => onAddTrade?.(connection)}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1 shrink-0" />
+                Trade
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={handleSyncClick}
+              isLoading={isSyncing}
+              disabled={connection.status === 'pending'}
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+              Sync Sekarang
+            </Button>
+          )}
+
           <Button
             variant="danger"
             size="sm"
@@ -251,15 +302,15 @@ export function ConnectionCard({
       <Modal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        title="Putuskan Koneksi MT5?"
-        description={`Apakah Anda yakin ingin memutus koneksi akun #${connection.accountNumber || 'ini'}? Token API akan langsung dicabut dan EA di MT5 tidak akan dapat mengirim data.`}
+        title="Hapus Koneksi Trading?"
+        description={`Apakah Anda yakin ingin menghapus akun "${connection.brokerName || connection.accountNumber || 'ini'}"? ${isManual ? 'Semua riwayat trade yang terkait tetap tersimpan.' : 'Token API akan langsung dicabut.'}`}
       >
         <div className="flex items-center justify-end gap-3 mt-6">
           <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>
             Batal
           </Button>
           <Button variant="danger" onClick={handleDeleteConfirm}>
-            Ya, Putuskan Koneksi
+            Ya, Hapus Koneksi
           </Button>
         </div>
       </Modal>

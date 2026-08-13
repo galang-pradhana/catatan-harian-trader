@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       const accNumStr = c.account_number ? String(c.account_number) : ''
       const brokerStr = c.broker_name || 'Trading Account'
       const accType = c.account_type || 'standard'
-      const platformVal = (c.platform && String(c.platform).toLowerCase() === 'mt4') ? 'mt4' : 'mt5'
+      const platformVal = (c.platform && ['mt4', 'mt5', 'manual'].includes(String(c.platform).toLowerCase())) ? String(c.platform).toLowerCase() : 'mt5'
       const balanceUsd = accType === 'cent' ? effectiveBalance / 100 : effectiveBalance
 
       return {
@@ -142,13 +142,22 @@ export async function POST(request: NextRequest) {
   try {
     let accountType = 'standard'
     let platform = 'mt5'
+    let brokerName = ''
+    let initialBalance = 0
     try {
       const body = await request.json()
       if (body?.accountType || body?.account_type) {
         accountType = body.accountType || body.account_type
       }
       if (body?.platform) {
-        platform = String(body.platform).toLowerCase() === 'mt4' ? 'mt4' : 'mt5'
+        const p = String(body.platform).toLowerCase()
+        platform = (p === 'mt4' || p === 'manual') ? p : 'mt5'
+      }
+      if (body?.brokerName || body?.broker_name || body?.accountName) {
+        brokerName = body.brokerName || body.broker_name || body.accountName
+      }
+      if (body?.initialBalance !== undefined || body?.currentBalance !== undefined || body?.balance !== undefined) {
+        initialBalance = Number(body.initialBalance ?? body.currentBalance ?? body.balance ?? 0)
       }
     } catch {
       // Body optional
@@ -216,19 +225,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const isManual = platform === 'manual'
     const insertPayload: any = {
       user_id: user.id,
-      api_token_hash: tokenHash,
-      status: 'pending',
+      api_token_hash: isManual ? `manual_${user.id}_${Date.now()}` : tokenHash,
+      broker_name: isManual ? (brokerName.trim() || 'Akun Trading Manual') : null,
+      status: isManual ? 'connected' : 'pending',
       account_type: accountType,
       platform,
+      current_balance: isManual ? initialBalance : 0,
+      balance_updated_at: isManual ? new Date().toISOString() : null,
     }
 
-    let { data: newConn, error: insertError } = await supabase
+    let newConn: any = null
+    let insertError: any = null
+    const primaryRes = await supabase
       .from('mt5_connections')
       .insert(insertPayload)
-      .select('id, status, created_at, account_type, platform')
+      .select('id, status, created_at, account_type, platform, current_balance, broker_name')
       .single()
+
+    newConn = primaryRes.data
+    insertError = primaryRes.error
 
     // Fallback if platform or account_type column does not exist in DB yet
     if (insertError) {
@@ -266,6 +284,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Insert initial balance snapshot for manual connections if initialBalance > 0
+    if (newConn && isManual && initialBalance > 0) {
+      await supabase.from('balance_snapshots').insert({
+        mt5_connection_id: newConn.id,
+        balance: initialBalance,
+        recorded_at: new Date().toISOString(),
+      })
+    }
+
     return NextResponse.json(
       {
         connection: {
@@ -274,10 +301,16 @@ export async function POST(request: NextRequest) {
           accountType: newConn.account_type || accountType,
           account_type: newConn.account_type || accountType,
           platform: newConn.platform || platform,
+          brokerName: newConn.broker_name || (isManual ? brokerName : 'Trading Account'),
+          broker_name: newConn.broker_name || (isManual ? brokerName : 'Trading Account'),
+          currentBalance: isManual ? initialBalance : 0,
+          current_balance: isManual ? initialBalance : 0,
           createdAt: newConn.created_at,
         },
-        token: plainToken,
-        message: `Token API berhasil dibuat. Salin token dan tempelkan ke EA ${(newConn.platform || platform).toUpperCase()} Anda.`,
+        token: isManual ? null : plainToken,
+        message: isManual
+          ? `Akun manual "${brokerName || 'Trading Account'}" berhasil dibuat.`
+          : `Token API berhasil dibuat. Salin token dan tempelkan ke EA ${(newConn.platform || platform).toUpperCase()} Anda.`,
       },
       { status: 201 }
     )

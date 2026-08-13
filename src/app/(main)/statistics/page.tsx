@@ -43,6 +43,7 @@ export default function StatisticsPage() {
   })
 
   const metrics = data?.metrics
+  const drawdownMetrics = data?.drawdownMetrics
   const equityCurve = data?.equityCurve || []
   const timeAnalysis = data?.timeAnalysis || { days: [], sessions: [] }
   const psychologyAnalysis = data?.psychologyAnalysis || { moods: [], discipline: [], topMistakes: [] }
@@ -265,23 +266,77 @@ export default function StatisticsPage() {
               </div>
             </div>
           </div>
-
           {/* SECONDARY STATS ROW */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center relative z-10">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-center relative z-10">
             {[
               { label: 'Rata-rata Win', value: `+$${(metrics?.avgWin ?? 0).toFixed(2)}`, color: 'text-emerald-700 dark:text-emerald-400', sub: 'Per trade menang' },
               { label: 'Rata-rata Loss', value: `-$${(metrics?.avgLoss ?? 0).toFixed(2)}`, color: 'text-red-700 dark:text-red-400', sub: 'Per trade kalah' },
-              { label: 'Trade Terbaik', value: `+$${(metrics?.bestTradePnl ?? 0).toFixed(2)}`, color: 'text-emerald-700 dark:text-emerald-400', sub: 'PnL tertinggi' },
-              { label: 'Trade Terburuk', value: `-$${Math.abs(metrics?.worstTradePnl ?? 0).toFixed(2)}`, color: 'text-red-700 dark:text-red-400', sub: 'PnL terendah' },
+              { label: 'Trade Terbesar (Profit)', value: `+$${(metrics?.bestTradePnl ?? 0).toFixed(2)}`, color: 'text-emerald-700 dark:text-emerald-400 font-extrabold', sub: 'Single trade tertinggi' },
+              { label: 'Trade Terbesar (Loss)', value: `-$${Math.abs(metrics?.worstTradePnl ?? 0).toFixed(2)}`, color: 'text-red-700 dark:text-red-400 font-extrabold', sub: 'Single trade terendah' },
               { label: 'Max Win Streak', value: `${metrics?.maxWinStreak ?? 0} Trade`, color: 'text-primary font-black', sub: 'Menang beruntun' },
               { label: 'Max Loss Streak', value: `${metrics?.maxLossStreak ?? 0} Trade`, color: 'text-foreground font-bold', sub: 'Kalah beruntun' },
+              { label: 'Konsekutif Win ($)', value: `+$${(metrics?.maxWinStreakPnl ?? 0).toFixed(2)}`, color: 'text-emerald-700 dark:text-emerald-400 font-black', sub: 'Kumulatif streak win' },
+              { label: 'Konsekutif Loss ($)', value: `-$${(metrics?.maxLossStreakPnl ?? 0).toFixed(2)}`, color: 'text-red-700 dark:text-red-400 font-black', sub: 'Kumulatif streak loss' },
             ].map((m) => (
               <div key={m.label} className="bg-card border border-border rounded-xl p-3 space-y-1">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase block font-sans">{m.label}</span>
-                <span className={cn('text-sm font-mono font-bold block', m.color)}>{m.value}</span>
-                <span className="text-[10px] text-muted-foreground block font-medium">{m.sub}</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block font-sans truncate">{m.label}</span>
+                <span className={cn('text-xs font-mono font-bold block truncate', m.color)}>{m.value}</span>
+                <span className="text-[10px] text-muted-foreground block font-medium truncate">{m.sub}</span>
               </div>
             ))}
+          </div>
+
+          {/* SECTION DRAWDOWN METRICS (F-33) */}
+          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-5 w-5 text-red-500" />
+                <div>
+                  <h3 className="text-sm font-extrabold text-foreground">Analisis Drawdown Akun (Real Snapshot)</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Dihitung dari snapshot balance EA (memperhitungkan deposit/withdrawal)
+                  </p>
+                </div>
+              </div>
+              {drawdownMetrics?.snapshotCount != null && (
+                <span className="text-[11px] text-muted-foreground bg-muted px-2.5 py-1 rounded-xl font-mono self-start sm:self-auto">
+                  ℹ️ Berdasarkan {drawdownMetrics.snapshotCount} titik data sync balance
+                </span>
+              )}
+            </div>
+
+            {!drawdownMetrics?.hasEnoughData ? (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>Data belum cukup untuk menghitung drawdown akurat (minimal butuh 2 titik data sync balance EA).</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-muted/30 border border-border rounded-xl p-4 space-y-1">
+                  <span className="text-xs font-bold text-muted-foreground uppercase">Absolute Drawdown</span>
+                  <span className="text-xl font-black font-mono text-foreground block">
+                    ${drawdownMetrics.absoluteDrawdown.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground block">Penurunan dari modal awal</span>
+                </div>
+
+                <div className="bg-muted/30 border border-border rounded-xl p-4 space-y-1">
+                  <span className="text-xs font-bold text-muted-foreground uppercase">Maximal Drawdown ($)</span>
+                  <span className="text-xl font-black font-mono text-red-500 block">
+                    -${drawdownMetrics.maxDrawdownDollar.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground block">Penurunan terbesar puncak ke lembah</span>
+                </div>
+
+                <div className="bg-muted/30 border border-border rounded-xl p-4 space-y-1">
+                  <span className="text-xs font-bold text-muted-foreground uppercase">Maximal Drawdown (%)</span>
+                  <span className="text-xl font-black font-mono text-red-500 block">
+                    {drawdownMetrics.maxDrawdownPct}%
+                  </span>
+                  <span className="text-[10px] text-muted-foreground block">Persentase dari balance puncak</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* REQUIREMENT 3: SECTION EQUITY CURVE & DRAWDOWN */}

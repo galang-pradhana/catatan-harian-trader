@@ -136,6 +136,53 @@ export async function GET(
       }
     }
 
+    // Calculate Kelly Criterion Metrics (F-35)
+    let tradesQuery = supabase
+      .from('trades')
+      .select('pnl, status')
+      .eq('user_id', user.id)
+      .eq('status', 'closed')
+
+    if (plan.mt5_connection_id) {
+      tradesQuery = tradesQuery.eq('mt5_connection_id', plan.mt5_connection_id)
+    }
+
+    const { data: closedTrades } = await tradesQuery
+
+    const totalClosed = closedTrades ? closedTrades.length : 0
+    const winTrades = (closedTrades || []).filter((t: any) => Number(t.pnl || 0) > 0)
+    const lossTrades = (closedTrades || []).filter((t: any) => Number(t.pnl || 0) < 0)
+
+    const winRateRatio = totalClosed > 0 ? winTrades.length / totalClosed : 0
+    const winRatePct = winRateRatio * 100
+
+    const grossProfit = winTrades.reduce((sum: number, t: any) => sum + Number(t.pnl), 0)
+    const grossLoss = lossTrades.reduce((sum: number, t: any) => sum + Math.abs(Number(t.pnl)), 0)
+
+    const avgWin = winTrades.length > 0 ? grossProfit / winTrades.length : 0
+    const avgLoss = lossTrades.length > 0 ? grossLoss / lossTrades.length : 0
+    const actualRR = avgLoss > 0 ? avgWin / avgLoss : (avgWin > 0 ? 3.0 : 1.0)
+
+    // Kelly % = Win Rate - [(1 - Win Rate) / RR]
+    let fullKellyRatio = 0
+    if (actualRR > 0) {
+      fullKellyRatio = winRateRatio - ((1 - winRateRatio) / actualRR)
+    }
+
+    const fullKellyPct = Math.round(Math.max(0, fullKellyRatio * 100) * 100) / 100
+    const halfKellyPct = Math.round((fullKellyPct / 2) * 100) / 100
+    const quarterKellyPct = Math.round((fullKellyPct / 4) * 100) / 100
+
+    const kellyMetrics = {
+      totalClosedTrades: totalClosed,
+      winRatePct: Math.round(winRatePct * 10) / 10,
+      actualRR: Math.round(actualRR * 100) / 100,
+      fullKellyPct,
+      halfKellyPct,
+      quarterKellyPct,
+      isSmallSample: totalClosed < 20,
+    }
+
     return NextResponse.json({
       success: true,
       plan: {
@@ -162,7 +209,8 @@ export async function GET(
         currentActiveLevel,
         currentBalance,
       },
-      levels: formattedLevels
+      levels: formattedLevels,
+      kellyMetrics,
     })
   } catch (err: any) {
     console.error('Compounding [id] GET error:', err)

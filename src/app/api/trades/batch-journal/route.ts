@@ -3,19 +3,20 @@ import { z } from 'zod'
 import { createClient } from '@/services/supabase/server'
 
 const BatchJournalSchema = z.object({
-  trade_ids:       z.array(z.string()).min(1, 'Minimal 1 trade harus dipilih'),
-  group_id:        z.string().optional(),
-  group_name:      z.string().max(255).optional(),
-  reason_entry:    z.string().max(2000).optional(),
-  mood:            z.string().optional(),
-  discipline:      z.enum(['yes', 'no']).optional(),
-  lesson_learned:  z.string().max(2000).optional(),
-  risk_percent:    z.number().min(0).max(100).optional(),
-  planned_rr:      z.number().min(0).optional(),
-  actual_rr:       z.number().optional(),
-  self_grade:      z.enum(['A', 'B', 'C', 'D', 'F']).optional(),
-  strategy_ids:    z.array(z.string()).optional(),
-  mistake_tag_ids: z.array(z.string()).optional(),
+  trade_ids:        z.array(z.string()).min(1, 'Minimal 1 trade harus dipilih'),
+  group_id:         z.string().optional(),
+  group_name:       z.string().max(255).optional(),
+  reason_entry:     z.string().max(2000).optional(),
+  mood:             z.string().optional(),
+  discipline:       z.enum(['yes', 'no']).optional(),
+  lesson_learned:   z.string().max(2000).optional(),
+  risk_percent:     z.number().min(0).max(100).optional(),
+  planned_rr:       z.number().min(0).optional(),
+  actual_rr:        z.number().optional(),
+  self_grade:       z.enum(['A', 'B', 'C', 'D', 'F']).optional(),
+  market_condition: z.enum(['ranging', 'trending']).optional(),
+  strategy_ids:     z.array(z.string()).optional(),
+  mistake_tag_ids:  z.array(z.string()).optional(),
 })
 
 // POST /api/trades/batch-journal — Batch update journal entries for multiple trades

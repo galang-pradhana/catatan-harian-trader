@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { hashToken } from '@/utils/token'
+import { getDefaultPipConfig, calculatePipsGained } from '@/utils/pip-calculator'
 
 // ── Zod schema for individual trade payload from EA ──────────
 const TradePayloadSchema = z.object({
@@ -173,6 +174,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Record balance snapshot if balance is present (even if trades array is empty)
+    if (balance !== undefined && !isNaN(balance)) {
+      try {
+        await supabase
+          .from('balance_snapshots')
+          .insert({
+            mt5_connection_id: connection.id,
+            balance: balance,
+            recorded_at: new Date().toISOString(),
+          })
+      } catch (snapErr) {
+        console.error('[sync] Error inserting balance snapshot:', snapErr)
+      }
+    }
+
     if (!trades.length) {
       // Update last_synced_at even with empty payload
       await supabase
@@ -183,28 +199,75 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, synced_count: 0 })
     }
 
-    // 4. UPSERT trades (idempotent by connection + ticket)
-    const rows = trades.map((t) => ({
-      user_id:           connection.user_id,
-      mt5_connection_id: connection.id,
-      mt5_ticket_id:     t.mt5_ticket_id,
-      symbol:            t.symbol.toUpperCase(),
-      direction:         t.direction,
-      volume:            t.volume,
-      open_price:        t.open_price,
-      close_price:       t.close_price ?? null,
-      open_time:         normalizeMT5DateTime(t.open_time)!,
-      close_time:        normalizeMT5DateTime(t.close_time ?? null),
-      sl:                (t.sl && t.sl !== 0) ? t.sl : null,
-      tp:                (t.tp && t.tp !== 0) ? t.tp : null,
-      pnl:               t.pnl ?? null,
-      commission:        t.commission,
-      swap:              t.swap,
-      status:            t.status,
-      source:            'mt5_sync',
-      mfe_value:         t.mfe_value ?? null,
-      session:           detectSession(t.open_time),
-    }))
+    // 4. Resolve Pip Configs per Symbol for user (Addendum V7 F-36)
+    const uniqueSymbols = Array.from(new Set(trades.map((t) => t.symbol.toUpperCase())))
+    const { data: existingConfigs } = await supabase
+      .from('symbol_pip_configs')
+      .select('symbol, pip_size, is_confirmed')
+      .eq('user_id', connection.user_id)
+
+    const configMap = new Map<string, { pip_size: number; is_confirmed: boolean }>()
+    if (existingConfigs) {
+      for (const cfg of existingConfigs) {
+        configMap.set(cfg.symbol, { pip_size: Number(cfg.pip_size), is_confirmed: Boolean(cfg.is_confirmed) })
+      }
+    }
+
+    const newConfigsToInsert: any[] = []
+    for (const sym of uniqueSymbols) {
+      if (!configMap.has(sym)) {
+        const defConfig = getDefaultPipConfig(sym)
+        if (defConfig) {
+          newConfigsToInsert.push({
+            user_id: connection.user_id,
+            symbol: sym,
+            pip_size: defConfig.pip_size,
+            is_confirmed: false,
+          })
+          configMap.set(sym, defConfig)
+        }
+      }
+    }
+
+    if (newConfigsToInsert.length > 0) {
+      try {
+        await supabase.from('symbol_pip_configs').insert(newConfigsToInsert)
+      } catch (cfgErr) {
+        console.error('[sync] Error seeding symbol_pip_configs:', cfgErr)
+      }
+    }
+
+    // 5. UPSERT trades (idempotent by connection + ticket)
+    const rows = trades.map((t) => {
+      const sym = t.symbol.toUpperCase()
+      const cfg = configMap.get(sym)
+      const pipsGained = cfg
+        ? calculatePipsGained(t.direction, t.open_price, t.close_price ?? null, cfg.pip_size, cfg.is_confirmed)
+        : null
+
+      return {
+        user_id:           connection.user_id,
+        mt5_connection_id: connection.id,
+        mt5_ticket_id:     t.mt5_ticket_id,
+        symbol:            sym,
+        direction:         t.direction,
+        volume:            t.volume,
+        open_price:        t.open_price,
+        close_price:       t.close_price ?? null,
+        open_time:         normalizeMT5DateTime(t.open_time)!,
+        close_time:        normalizeMT5DateTime(t.close_time ?? null),
+        sl:                (t.sl && t.sl !== 0) ? t.sl : null,
+        tp:                (t.tp && t.tp !== 0) ? t.tp : null,
+        pnl:               t.pnl ?? null,
+        commission:        t.commission,
+        swap:              t.swap,
+        status:            t.status,
+        source:            'mt5_sync',
+        mfe_value:         t.mfe_value ?? null,
+        session:           detectSession(t.open_time),
+        pips_gained:        pipsGained,
+      }
+    })
 
     // Upsert in chunks of 200 to prevent payload timeout for large trading histories
     const CHUNK_SIZE = 200

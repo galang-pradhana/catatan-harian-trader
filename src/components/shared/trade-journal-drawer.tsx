@@ -210,6 +210,7 @@ export function TradeJournalDrawer({
   const [reasonEntry, setReasonEntry] = useState('')
   const [mood, setMood] = useState<MoodType | undefined>()
   const [discipline, setDiscipline] = useState<'yes' | 'no' | undefined>()
+  const [marketCondition, setMarketCondition] = useState<'ranging' | 'trending' | undefined>()
   const [lessonLearned, setLessonLearned] = useState('')
   const [riskPercent, setRiskPercent] = useState<number | undefined>()
   const [plannedRR, setPlannedRR] = useState<number | undefined>()
@@ -305,6 +306,7 @@ export function TradeJournalDrawer({
           setReasonEntry(j.reason_entry || '')
           setMood(j.mood)
           setDiscipline(j.discipline)
+          setMarketCondition(j.market_condition)
           setLessonLearned(j.lesson_learned || '')
           setRiskPercent(j.risk_percent)
           setPlannedRR(j.planned_rr)
@@ -491,6 +493,7 @@ export function TradeJournalDrawer({
           reason_entry: reasonEntry || undefined,
           mood: mood || undefined,
           discipline: discipline || undefined,
+          market_condition: marketCondition || undefined,
           lesson_learned: lessonLearned || undefined,
           risk_percent: riskPercent,
           planned_rr: plannedRR,
@@ -543,6 +546,7 @@ export function TradeJournalDrawer({
           reason_entry: reasonEntry || undefined,
           mood: mood || undefined,
           discipline: discipline || undefined,
+          market_condition: marketCondition || undefined,
           lesson_learned: lessonLearned || undefined,
           risk_percent: cleanNum(riskPercent),
           planned_rr: cleanNum(plannedRR),
@@ -1170,6 +1174,46 @@ export function TradeJournalDrawer({
                         >
                           <ShieldAlert className="h-3.5 w-3.5 text-destructive" />
                           <span>Melanggar Rules</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Kondisi Market (F-37) */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-foreground">Kondisi Market Saat Entry</label>
+                        <span className="text-[10px] text-muted-foreground">Tag manual (F-37)</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMarketCondition((prev) => (prev === 'ranging' ? undefined : 'ranging'))
+                            markDirty()
+                          }}
+                          className={cn(
+                            'flex-1 py-1.5 px-3 rounded-xl font-bold border transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer',
+                            marketCondition === 'ranging'
+                              ? 'bg-amber-500/20 text-amber-400 border-amber-500/50 shadow-xs'
+                              : 'bg-card border-border text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          <span>↔️ Ranging</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMarketCondition((prev) => (prev === 'trending' ? undefined : 'trending'))
+                            markDirty()
+                          }}
+                          className={cn(
+                            'flex-1 py-1.5 px-3 rounded-xl font-bold border transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer',
+                            marketCondition === 'trending'
+                              ? 'bg-blue-500/20 text-blue-400 border-blue-500/50 shadow-xs'
+                              : 'bg-card border-border text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          <span>📈 Trending</span>
                         </button>
                       </div>
                     </div>

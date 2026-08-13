@@ -37,6 +37,7 @@ interface ManualTradeModalProps {
   onClose: () => void
   mode?: TradeMode
   tradeId?: string
+  connectionId?: string
   initialData?: Partial<ManualTradeForm>
 }
 
@@ -120,12 +121,35 @@ export function ManualTradeModal({
   onClose,
   mode = 'create',
   tradeId,
+  connectionId,
   initialData,
 }: ManualTradeModalProps) {
   const queryClient = useQueryClient()
   const [step, setStep] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [symbolInput, setSymbolInput] = useState('')
+  const [connections, setConnections] = useState<any[]>([])
+  const [selectedConnId, setSelectedConnId] = useState<string>(connectionId || '')
+
+  useEffect(() => {
+    if (isOpen) {
+      if (connectionId) {
+        setSelectedConnId(connectionId)
+      }
+      fetch('/api/mt5/connections')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.connections && Array.isArray(data.connections)) {
+            setConnections(data.connections)
+            if (!connectionId && data.connections.length > 0) {
+              const manualConn = data.connections.find((c: any) => c.platform === 'manual')
+              setSelectedConnId(manualConn ? manualConn.id : data.connections[0].id)
+            }
+          }
+        })
+        .catch(() => {})
+    }
+  }, [isOpen, connectionId])
 
   const [form, setForm] = useState<ManualTradeForm>({
     symbol: '',
@@ -202,6 +226,7 @@ export function ManualTradeModal({
     setIsLoading(true)
     try {
       const payload = {
+        connectionId: selectedConnId || connectionId,
         symbol:      form.symbol.toUpperCase().trim(),
         direction:   form.direction,
         volume:      Number(form.volume),
@@ -301,6 +326,26 @@ export function ManualTradeModal({
           {/* ──────────── STEP 0: DASAR ──────────── */}
           {step === 0 && (
             <div className="space-y-5 animate-in fade-in duration-200">
+              {/* Account Selector */}
+              {connections.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-foreground/80 uppercase tracking-wider">
+                    Akun Trading Target
+                  </label>
+                  <select
+                    value={selectedConnId}
+                    onChange={(e) => setSelectedConnId(e.target.value)}
+                    className="w-full h-11 rounded-xl border border-border bg-background px-3 text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    {connections.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.brokerName || c.broker_name || 'Trading Account'} ({(c.platform || 'mt5').toUpperCase()}{c.accountNumber ? ` #${c.accountNumber}` : ''})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="text-xs font-bold text-foreground/80 uppercase tracking-wider">
                   Simbol / Pair

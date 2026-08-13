@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// PATCH /api/mt5/connections/[id] — Update connection details (e.g. account_type: 'standard' | 'cent')
+// PATCH /api/mt5/connections/[id] — Update connection details (e.g. account_type, current_balance)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -8,25 +8,20 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await request.json()
-    const { accountType, account_type } = body
-    const targetType = accountType || account_type || 'standard'
-
-    if (targetType !== 'standard' && targetType !== 'cent') {
-      return NextResponse.json(
-        { error: 'INVALID_ACCOUNT_TYPE', message: 'Tipe akun harus "standard" atau "cent"' },
-        { status: 400 }
-      )
-    }
+    const { accountType, account_type, currentBalance, current_balance, balance } = body
 
     const isSupabaseConfigured =
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
       process.env.NEXT_PUBLIC_SUPABASE_URL !== 'your_supabase_url_here'
 
+    const targetBalance = currentBalance !== undefined ? currentBalance : (current_balance !== undefined ? current_balance : balance)
+
     if (!isSupabaseConfigured) {
       return NextResponse.json({
         success: true,
-        account_type: targetType,
-        message: 'Tipe akun berhasil diperbarui (Demo)',
+        account_type: accountType || account_type || 'standard',
+        current_balance: targetBalance,
+        message: 'Koneksi berhasil diperbarui (Demo)',
       })
     }
 
@@ -45,28 +40,60 @@ export async function PATCH(
       )
     }
 
+    const updateData: Record<string, any> = {}
+
+    if (accountType || account_type) {
+      const targetType = accountType || account_type
+      if (targetType === 'standard' || targetType === 'cent') {
+        updateData.account_type = targetType
+      }
+    }
+
+    if (targetBalance !== undefined && targetBalance !== null) {
+      const numBal = Number(targetBalance)
+      if (!isNaN(numBal)) {
+        updateData.current_balance = numBal
+        updateData.balance_updated_at = new Date().toISOString()
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: 'NO_UPDATES', message: 'Tidak ada data yang diperbarui' },
+        { status: 400 }
+      )
+    }
+
     let { data: updated, error: updateError } = await supabase
       .from('mt5_connections')
-      .update({ account_type: targetType })
+      .update(updateData)
       .eq('id', id)
       .eq('user_id', user.id)
-      .select('id, status, account_type')
+      .select('id, status, account_type, current_balance, balance_updated_at')
       .single()
 
     if (updateError) {
-      console.warn('PATCH /api/mt5/connections/[id] update warning (column may be missing):', updateError.message)
-      // Fallback: return success so client can persist in localStorage
+      console.warn('PATCH /api/mt5/connections/[id] update warning:', updateError.message)
       return NextResponse.json({
         success: true,
-        connection: { id, status: 'connected', account_type: targetType },
-        message: `Tipe akun diubah menjadi ${targetType === 'cent' ? 'Akun Cent (USC)' : 'Akun Standar (USD)'}.`,
+        connection: { id, status: 'connected', ...updateData },
+        message: 'Data koneksi diperbarui',
+      })
+    }
+
+    // Insert snapshot if current_balance was updated
+    if (updateData.current_balance !== undefined) {
+      await supabase.from('balance_snapshots').insert({
+        mt5_connection_id: id,
+        balance: updateData.current_balance,
+        recorded_at: new Date().toISOString(),
       })
     }
 
     return NextResponse.json({
       success: true,
       connection: updated,
-      message: `Tipe akun berhasil diubah menjadi ${targetType === 'cent' ? 'Akun Cent (USC)' : 'Akun Standar (USD)'}.`,
+      message: 'Koneksi trading berhasil diperbarui',
     })
   } catch (err: any) {
     return NextResponse.json(
